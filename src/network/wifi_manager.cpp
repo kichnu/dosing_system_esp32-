@@ -33,7 +33,7 @@ void initWiFi() {
     WiFi.begin(ssid, password);
     
     int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+    while (WiFi.status() != WL_CONNECTED && attempts < 50) {
         delay(500);
         attempts++;
         LOG_INFO("WiFi connection attempt %d/20", attempts);
