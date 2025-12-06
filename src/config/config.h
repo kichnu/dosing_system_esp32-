@@ -11,9 +11,7 @@
 // TYLKO DEKLARACJE (extern) - NIE DEFINICJE!
 extern const char* WIFI_SSID;
 extern const char* WIFI_PASSWORD;
-extern const IPAddress STATIC_IP;
-extern const IPAddress GATEWAY;
-extern const IPAddress SUBNET;
+
 extern const char* ADMIN_PASSWORD_HASH;
 extern const IPAddress ALLOWED_IPS[];
 extern const int ALLOWED_IPS_COUNT;

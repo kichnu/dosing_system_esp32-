@@ -8,9 +8,6 @@
 // ===============================
 const char* WIFI_SSID = "SETUP_REQUIRED";
 const char* WIFI_PASSWORD = "SETUP_REQUIRED";
-const IPAddress STATIC_IP(192, 168, 0, 164);
-const IPAddress GATEWAY(192, 168, 0, 1);
-const IPAddress SUBNET(255, 255, 255, 0);
 
 const char* ADMIN_PASSWORD_HASH = nullptr;  // ✅ Force FRAM setup!
 

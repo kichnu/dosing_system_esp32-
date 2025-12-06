@@ -13,7 +13,7 @@ const unsigned long RECONNECT_INTERVAL = 30000; // 30 seconds
 
 void initWiFi() {
     WiFi.mode(WIFI_STA);
-    WiFi.config(STATIC_IP, GATEWAY, SUBNET);
+    // WiFi.config(STATIC_IP, GATEWAY, SUBNET);
     
 #if MODE_PRODUCTION
     // Production mode: use dynamic credentials

@@ -284,6 +284,16 @@ void setup() {
         Serial.println("║    ENTERING PROVISIONING MODE          ║");
         Serial.println("╚════════════════════════════════════════╝");
         Serial.println();
+
+        Serial.println("Initializing FRAM for credential storage...");
+        if (!initFRAM()) {
+            Serial.println("WARNING: FRAM initialization failed!");
+            Serial.println("Credentials may not be saved properly.");
+            delay(2000);
+        } else {
+            Serial.println("✓ FRAM ready");
+        }
+        Serial.println();
         
         // Start Access Point
         if (!startAccessPoint()) {

@@ -1,7 +1,10 @@
 #include "ap_server.h"
 #include "ap_html.h"
+#include "wifi_scanner.h"
+#include "ap_handlers.h"
 #include "prov_config.h"
 #include "../core/logging.h"
+#include <AsyncJson.h>
 #include <ESPAsyncWebServer.h>
 
 // Global web server instance
@@ -24,6 +27,28 @@ bool startWebServer() {
         LOG_INFO("Serving setup page to client: %s", request->client()->remoteIP().toString().c_str());
         request->send_P(200, "text/html", getSetupPageHTML());
     });
+
+    // ===== API: WiFi Network Scan =====
+    webServer->on("/api/scan", HTTP_GET, [](AsyncWebServerRequest *request){
+        LOG_INFO("WiFi scan requested by: %s", request->client()->remoteIP().toString().c_str());
+        
+        // Run scan and get JSON
+        String networksJSON = scanWiFiNetworksJSON(true, true);
+        
+        // Send JSON response
+        request->send(200, "application/json", networksJSON);
+        
+        LOG_INFO("WiFi scan results sent");
+    });
+
+    // ===== API: Configuration Submit =====
+    AsyncCallbackJsonWebHandler* configHandler = new AsyncCallbackJsonWebHandler(
+        "/api/configure", 
+        [](AsyncWebServerRequest *request, JsonVariant &json) {
+            handleConfigureSubmit(request, json);
+        }
+    );
+    webServer->addHandler(configHandler);
     
     // ===== CAPTIVE PORTAL DETECTION - iOS =====
     webServer->on("/hotspot-detect.html", HTTP_GET, [](AsyncWebServerRequest *request){
