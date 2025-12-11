@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DOSING SYSTEM - Interactive Dashboard</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header-info {
+            text-align: right;
+            font-size: 14px;
+        }
+        
+        .logout-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        /* Main Card */
+        .dashboard-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        
+        .card-header {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .card-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .card-subtitle {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        /* Timeline (belka) */
+        .dose-timeline {
+            margin-bottom: 30px;
+        }
+        
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .timeline-label {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .timeline-icon {
+            font-size: 20px;
+        }
+        
+        .timeline-time-range {
+            font-size: 13px;
+            color: #666;
+            font-weight: normal;
+        }
+        
+        .timeline-track {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        /* Channel Tile - 3 stany */
+        .channel-tile {
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            min-height: 180px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .channel-tile:hover:not(.active):not(.disabled) {
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            transform: translateY(-3px);
+            border-color: #667eea;
+        }
+        
+        /* Tile statusy */
+        .channel-tile.pending {
+            border-color: #ffc107;
+            background: linear-gradient(135deg, #fff 0%, #fffbf0 100%);
+        }
+        
+        .channel-tile.completed {
+            border-color: #28a745;
+            background: linear-gradient(135deg, #fff 0%, #f0f9f4 100%);
+        }
+        
+        .channel-tile.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #fff 0%, #f0f3ff 100%);
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2);
+            cursor: not-allowed;
+            animation: activePulse 2s infinite;
+        }
+        
+        @keyframes activePulse {
+            0%, 100% { box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2); }
+            50% { box-shadow: 0 0 0 8px rgba(102, 126, 234, 0.1); }
+        }
+        
+        .channel-tile.disabled {
+            border-color: #ccc;
+            background: #f5f5f5;
+            opacity: 0.6;
+            cursor: pointer;
+        }
+        
+        .channel-tile.disabled:hover {
+            opacity: 0.8;
+            border-color: #999;
+        }
+        
+        /* EDIT MODE overlay */
+        .channel-tile.edit-mode {
+            border-color: #667eea;
+            border-width: 3px;
+            box-shadow: 0 8px 30px rgba(102, 126, 234, 0.3);
+            z-index: 10;
+        }
+        
+        /* Tile header */
+        .tile-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .channel-name {
+            font-weight: bold;
+            font-size: 18px;
+            color: #333;
+        }
+        
+        .edit-indicator {
+            font-size: 20px;
+            color: #667eea;
+            display: none;
+        }
+        
+        .channel-tile.edit-mode .edit-indicator {
+            display: block;
+            animation: spin 2s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-badge.pending { background: #ffc107; color: #333; }
+        .status-badge.completed { background: #28a745; color: white; }
+        .status-badge.active { background: #667eea; color: white; }
+        .status-badge.disabled { background: #ccc; color: #666; }
+        
+        /* VIEW MODE content */
+        .tile-view-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .tile-params {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.8;
+            flex: 1;
+        }
+        
+        .param-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        
+        .param-label {
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .param-value {
+            color: #333;
+            font-weight: bold;
+        }
+        
+        .time-display {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+            text-align: center;
+            margin-top: auto;
+            padding-top: 12px;
+            border-top: 2px solid #eee;
+        }
+        
+        .tile-disabled-message {
+            text-align: center;
+            color: #999;
+            font-style: italic;
+            margin-top: 20px;
+            font-size: 13px;
+        }
+        
+        /* EDIT MODE content */
+        .tile-edit-content {
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .channel-tile.edit-mode .tile-view-content {
+            display: none;
+        }
+        
+        .channel-tile.edit-mode .tile-edit-content {
+            display: flex;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        .form-group {
+            margin-bottom: 10px;
+        }
+        
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        
+        .form-group select:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .calculated-values {
+            background: #e8f4f8;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            color: #0c5460;
+            margin-top: 8px;
+        }
+        
+        .calculated-values strong {
+            display: block;
+            margin-bottom: 5px;
+            color: #17a2b8;
+        }
+        
+        .validation-error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 11px;
+            margin-top: 8px;
+            display: none;
+        }
+        
+        .validation-error.show {
+            display: block;
+        }
+        
+        .edit-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        .btn-save {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-save:hover:not(:disabled) {
+            background: #218838;
+        }
+        
+        .btn-cancel {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-cancel:hover {
+            background: #5a6268;
+        }
+        
+        .btn-calibrate {
+            background: #17a2b8;
+            color: white;
+        }
+        
+        .btn-calibrate:hover {
+            background: #138496;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Password Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-overlay.show {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 10px 50px rgba(0,0,0,0.3);
+        }
+        
+        .modal-content h3 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .modal-content input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        /* Info Box */
+        .info-box {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f4f8;
+            border-left: 4px solid #17a2b8;
+            border-radius: 5px;
+            font-size: 13px;
+            color: #0c5460;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .timeline-track {
+                grid-template-columns: 1fr;
+            }
+            
+            .header {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .header-info {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div>
+                <h1>💊 Dosing System Dashboard</h1>
+            </div>
+            <div class="header-info">
+                <div><strong>Today:</strong> Monday, Oct 20, 2025</div>
+                <div><strong>UTC Time:</strong> <span id="utcTime">12:34:56</span></div>
+                <div><strong>Device:</strong> DOLEWKA</div>
+            </div>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+        
+        <!-- Main Dashboard -->
+        <div class="dashboard-card">
+            <div class="card-header">
+                <div class="card-title">📅 Daily Schedule & Configuration</div>
+                <div class="card-subtitle">
+                    Click any channel tile to configure. Changes require password confirmation.
+                </div>
+            </div>
+            
+            <!-- GÓRNA BELKA: Morning Doses -->
+            <div class="dose-timeline">
+                <div class="timeline-header">
+                    <div class="timeline-label">
+                        <span class="timeline-icon">🌅</span>
+                        Morning Doses
+                        <span class="timeline-time-range">(00:00 - 12:00 CET)</span>
+                    </div>
+                </div>
+                <div class="timeline-track" id="morningTrack">
+                    <!-- Channels 1-6 będą tutaj generowane dynamicznie -->
+                </div>
+            </div>
+            
+            <!-- DOLNA BELKA: Evening Doses -->
+            <div class="dose-timeline">
+                <div class="timeline-header">
+                    <div class="timeline-label">
+                        <span class="timeline-icon">🌙</span>
+                        Evening Doses
+                        <span class="timeline-time-range">(12:00 - 24:00 CET)</span>
+                    </div>
+                </div>
+                <div class="timeline-track" id="eveningTrack">
+                    <!-- Channels 1-6 będą tutaj generowane dynamicznie -->
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <strong>ℹ️ How to use:</strong><br>
+                • <strong>Click any tile</strong> to edit channel configuration<br>
+                • Times are displayed in <strong>CET (Poland local time)</strong><br>
+                • System operates on <strong>UTC</strong> internally<br>
+                • Tolerance window: <strong>±30 minutes</strong><br>
+                • <strong>Active pumps</strong> cannot be edited until completed
+            </div>
+        </div>
+    </div>
+    
+    <!-- Password Modal -->
+    <div class="modal-overlay" id="passwordModal">
+        <div class="modal-content">
+            <h3>🔒 Confirm Changes</h3>
+            <p style="color: #666; margin-bottom: 15px;">
+                Enter administrator password to save configuration changes.
+            </p>
+            <input type="password" id="passwordInput" placeholder="Password">
+            <div class="modal-actions">
+                <button class="btn btn-save" onclick="confirmPassword()">Confirm</button>
+                <button class="btn btn-cancel" onclick="cancelPassword()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===========================================
+        // MOCK DATA (w produkcji z API)
+        // ===========================================
+        const CHANNEL_COUNT = 6;
+        
+        let channelsConfig = [
+            { 
+                id: 1, 
+                enabled: true, 
+                weekly_schedule: 127,  // every day
+                daily_schedule: 2, 
+                weekly_dosing_value: 217,
+                dosing_rate: 0.33,
+                status: 'completed'  // completed, pending, active, disabled
+            },
+            { 
+                id: 2, 
+                enabled: true, 
+                weekly_schedule: 127, 
+                daily_schedule: 2, 
+                weekly_dosing_value: 308,
+                dosing_rate: 0.33,
+                status: 'active'
+            },
+            { 
+                id: 3, 
+                enabled: true, 
+                weekly_schedule: 42,  // Tue, Thu, Sun
+                daily_schedule: 1, 
+                weekly_dosing_value: 150,
+                dosing_rate: 0.33,
+                status: 'pending'
+            },
+            { 
+                id: 4, 
+                enabled: false, 
+                weekly_schedule: 0, 
+                daily_schedule: 1, 
+                weekly_dosing_value: 0,
+                dosing_rate: 0.33,
+                status: 'disabled'
+            },
+            { 
+                id: 5, 
+                enabled: true, 
+                weekly_schedule: 127, 
+                daily_schedule: 2, 
+                weekly_dosing_value: 280,
+                dosing_rate: 0.33,
+                status: 'pending'
+            },
+            { 
+                id: 6, 
+                enabled: true, 
+                weekly_schedule: 62,  // Mon-Fri
+                daily_schedule: 1, 
+                weekly_dosing_value: 175,
+                dosing_rate: 0.33,
+                status: 'pending'
+            }
+        ];
+        
+        const SCHEDULE_PRESETS = [
+            { value: 1, label: "Sunday only" },
+            { value: 36, label: "Wednesday + Sunday" },
+            { value: 42, label: "Tuesday + Thursday + Sunday" },
+            { value: 31, label: "Mon-Fri (workdays)" },
+            { value: 96, label: "Weekend only" },
+            { value: 127, label: "Every day" }
+        ];
+        
+        let editingChannel = null;
+        let pendingChanges = null;
+        
+        // ===========================================
+        // RENDERING FUNCTIONS
+        // ===========================================
+        
+        function renderDashboard() {
+            const morningTrack = document.getElementById('morningTrack');
+            const eveningTrack = document.getElementById('eveningTrack');
+            
+            morningTrack.innerHTML = '';
+            eveningTrack.innerHTML = '';
+            
+            channelsConfig.forEach((channel, index) => {
+                // Morning tile
+                const morningTile = createChannelTile(channel, 'morning', index);
+                morningTrack.appendChild(morningTile);
+                
+                // Evening tile (only if daily_schedule == 2)
+                const eveningTile = createChannelTile(channel, 'evening', index);
+                eveningTrack.appendChild(eveningTile);
+            });
+        }
+        
+        function createChannelTile(channel, period, channelIndex) {
+            const tile = document.createElement('div');
+            tile.className = `channel-tile ${channel.status}`;
+            tile.dataset.channelId = channel.id;
+            tile.dataset.period = period;
+            
+            // Don't allow edit if active
+            if (channel.status !== 'active') {
+                tile.onclick = () => enterEditMode(channel.id, period);
+            }
+            
+            // Calculate values
+            const daysActive = countBits(channel.weekly_schedule);
+            const singleDose = daysActive > 0 && channel.daily_schedule > 0
+                ? channel.weekly_dosing_value / (daysActive * channel.daily_schedule)
+                : 0;
+            const duration = channel.dosing_rate > 0 ? Math.round(singleDose / channel.dosing_rate) : 0;
+            
+            // Calculate time (simplified - in production use real algorithm)
+            const interval = 43200 / CHANNEL_COUNT;
+            const baseTime = period === 'morning' ? 0 : 43200;
+            const timeSeconds = baseTime + (channelIndex * interval);
+            const timeStr = formatTime(timeSeconds, true); // convert to CET
+            
+            // Show evening tile only if daily_schedule == 2
+            const showEvening = channel.daily_schedule === 2;
+            if (period === 'evening' && !showEvening) {
+                tile.style.display = 'none';
+            }
+            
+            // VIEW MODE content
+            tile.innerHTML = `
+                <div class="tile-header">
+                    <span class="channel-name">Channel ${channel.id}</span>
+                    <span class="edit-indicator">⚙️</span>
+                    <span class="status-badge ${channel.status}">
+                        ${getStatusText(channel.status)}
+                    </span>
+                </div>
+                
+                <div class="tile-view-content">
+                    ${channel.enabled ? `
+                        <div class="tile-params">
+                            <div class="param-row">
+                                <span class="param-label">Weekly Total:</span>
+                                <span class="param-value">${channel.weekly_dosing_value} ml</span>
+                            </div>
+                            <div class="param-row">
+                                <span class="param-label">Single Dose:</span>
+                                <span class="param-value">${singleDose.toFixed(1)} ml</span>
+                            </div>
+                            <div class="param-row">
+                                <span class="param-label">Duration:</span>
+                                <span class="param-value">${duration} sec</span>
+                            </div>
+                            <div class="param-row">
+                                <span class="param-label">Schedule:</span>
+                                <span class="param-value">${getScheduleLabel(channel.weekly_schedule)}</span>
+                            </div>
+                        </div>
+                        <div class="time-display">${timeStr}</div>
+                    ` : `
+                        <div class="tile-disabled-message">
+                            Channel disabled<br>
+                            <small>Click to configure</small>
+                        </div>
+                    `}
+                </div>
+                
+                <div class="tile-edit-content">
+                    ${createEditForm(channel)}
+                </div>
+            `;
+            
+            return tile;
+        }
+        
+        function createEditForm(channel) {
+            const daysActive = countBits(channel.weekly_schedule);
+            const singleDose = daysActive > 0 && channel.daily_schedule > 0
+                ? channel.weekly_dosing_value / (daysActive * channel.daily_schedule)
+                : 0;
+            const duration = channel.dosing_rate > 0 ? Math.round(singleDose / channel.dosing_rate) : 0;
+            
+            const isValid = duration <= 120 && singleDose <= 50;
+            
+            return `
+                <form onsubmit="return false;">
+                    <div class="form-group">
+                        <label>Enable Channel:</label>
+                        <select id="enabled_${channel.id}">
+                            <option value="1" ${channel.enabled ? 'selected' : ''}>Enabled</option>
+                            <option value="0" ${!channel.enabled ? 'selected' : ''}>Disabled</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Weekly Schedule:</label>
+                        <select id="weekly_schedule_${channel.id}">
+                            ${SCHEDULE_PRESETS.map(preset => `
+                                <option value="${preset.value}" 
+                                    ${channel.weekly_schedule === preset.value ? 'selected' : ''}>
+                                    ${preset.label}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Daily Doses:</label>
+                        <select id="daily_schedule_${channel.id}">
+                            <option value="1" ${channel.daily_schedule === 1 ? 'selected' : ''}>1x per day</option>
+                            <option value="2" ${channel.daily_schedule === 2 ? 'selected' : ''}>2x per day</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Weekly Dosing (ml):</label>
+                        <input type="number" id="weekly_dosing_${channel.id}" 
+                               value="${channel.weekly_dosing_value}" 
+                               min="0" max="1000" step="1">
+                    </div>
+                    
+                    <div class="calculated-values">
+                        <strong>Calculated:</strong>
+                        Single dose: <strong>${singleDose.toFixed(1)} ml</strong><br>
+                        Duration: <strong>${duration} sec</strong>
+                    </div>
+                    
+                    <div class="validation-error ${!isValid ? 'show' : ''}">
+                        ⚠️ Invalid: Duration must be ≤120s and dose ≤50ml
+                    </div>
+                    
+                    <div class="edit-actions">
+                        <button class="btn btn-save" onclick="saveChannelConfig(${channel.id})" 
+                                ${!isValid ? 'disabled' : ''}>
+                            💾 Save
+                        </button>
+                        <button class="btn btn-cancel" onclick="cancelEdit()">
+                            ✖️ Cancel
+                        </button>
+                    </div>
+                    
+                    <button class="btn btn-calibrate" onclick="calibrateChannel(${channel.id})" 
+                            style="margin-top: 10px; width: 100%;">
+                        🔧 Calibrate (30s)
+                    </button>
+                </form>
+            `;
+        }
+        
+        // ===========================================
+        // EDIT MODE FUNCTIONS
+        // ===========================================
+        
+        function enterEditMode(channelId, period) {
+            // Exit previous edit mode
+            if (editingChannel) {
+                cancelEdit();
+            }
+            
+            const tiles = document.querySelectorAll(`.channel-tile[data-channel-id="${channelId}"]`);
+            tiles.forEach(tile => {
+                tile.classList.add('edit-mode');
+            });
+            
+            editingChannel = channelId;
+            
+            // Add real-time validation
+            addRealtimeValidation(channelId);
+        }
+        
+        function cancelEdit() {
+            if (editingChannel) {
+                const tiles = document.querySelectorAll(`.channel-tile[data-channel-id="${editingChannel}"]`);
+                tiles.forEach(tile => {
+                    tile.classList.remove('edit-mode');
+                });
+                editingChannel = null;
+            }
+        }
+        
+        function addRealtimeValidation(channelId) {
+            const inputs = ['weekly_schedule', 'daily_schedule', 'weekly_dosing'];
+            inputs.forEach(inputName => {
+                const element = document.getElementById(`${inputName}_${channelId}`);
+                if (element) {
+                    element.addEventListener('input', () => updateCalculatedValues(channelId));
+                }
+            });
+        }
+        
+        function updateCalculatedValues(channelId) {
+            // Real-time recalculation (simplified)
+            console.log(`Recalculating for channel ${channelId}`);
+            // TODO: Update .calculated-values in real-time
+        }
+        
+        function saveChannelConfig(channelId) {
+            // Collect form data
+            const enabled = document.getElementById(`enabled_${channelId}`).value === '1';
+            const weekly_schedule = parseInt(document.getElementById(`weekly_schedule_${channelId}`).value);
+            const daily_schedule = parseInt(document.getElementById(`daily_schedule_${channelId}`).value);
+            const weekly_dosing_value = parseInt(document.getElementById(`weekly_dosing_${channelId}`).value);
+            
+            pendingChanges = {
+                channelId,
+                config: { enabled, weekly_schedule, daily_schedule, weekly_dosing_value }
+            };
+            
+            // Show password modal
+            document.getElementById('passwordModal').classList.add('show');
+            document.getElementById('passwordInput').focus();
+        }
+        
+        function confirmPassword() {
+            const password = document.getElementById('passwordInput').value;
+            
+            // In production: verify with /api/verify-password
+            if (password === 'admin') {  // MOCK
+                // Apply changes
+                const channel = channelsConfig.find(ch => ch.id === pendingChanges.channelId);
+                Object.assign(channel, pendingChanges.config);
+                
+                // Send to backend
+                console.log('Saving to backend:', pendingChanges);
+                // fetch('/api/dosing-config', { method: 'POST', body: JSON.stringify(pendingChanges) });
+                
+                // Re-render
+                cancelPassword();
+                cancelEdit();
+                renderDashboard();
+                
+                alert('✅ Configuration saved successfully!');
+            } else {
+                alert('❌ Invalid password');
+            }
+        }
+        
+        function cancelPassword() {
+            document.getElementById('passwordModal').classList.remove('show');
+            document.getElementById('passwordInput').value = '';
+            pendingChanges = null;
+        }
+        
+        function calibrateChannel(channelId) {
+            if (confirm(`Start 30s calibration for Channel ${channelId}?`)) {
+                // Call API
+                console.log(`Calibrating channel ${channelId}`);
+                alert('🔧 Calibration started! Pump will run for 30 seconds.');
+            }
+        }
+        
+        // ===========================================
+        // HELPER FUNCTIONS
+        // ===========================================
+        
+        function countBits(n) {
+            let count = 0;
+            while (n) {
+                count += n & 1;
+                n >>= 1;
+            }
+            return count;
+        }
+        
+        function getScheduleLabel(bitmask) {
+            const preset = SCHEDULE_PRESETS.find(p => p.value === bitmask);
+            return preset ? preset.label : `Custom (${countBits(bitmask)}x)`;
+        }
+        
+        function getStatusText(status) {
+            const map = {
+                'pending': '⏳ Pending',
+                'completed': '✓ Done',
+                'active': '⚡ Active',
+                'disabled': 'OFF'
+            };
+            return map[status] || status;
+        }
+        
+        function formatTime(seconds, convertToCET = true) {
+            if (convertToCET) seconds += 3600;  // +1h for CET (simplified)
+            const h = Math.floor(seconds / 3600) % 24;
+            const m = Math.floor((seconds % 3600) / 60);
+            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        }
+        
+        function logout() {
+            window.location.href = '/login';
+        }
+        
+        // ===========================================
+        // INIT
+        // ===========================================
+        
+        renderDashboard();
+        
+        // Auto-refresh every 30s
+        setInterval(() => {
+            if (!editingChannel) {
+                // Fetch latest data from API
+                // renderDashboard();
+            }
+        }, 30000);
+        
+        // Update UTC time
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('utcTime').textContent = now.toISOString().substr(11, 8);
+        }, 1000);
+    </script>
+</body>
+</html>
