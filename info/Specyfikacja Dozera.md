@@ -1,3 +1,5 @@
+title:  Specyfikacja Dozera.md
+
 DOSING SYSTEM - CONDENSED SPECIFICATION v1.0
 1. SYSTEM OVERVIEW
 Target Platform: Seeed XIAO ESP32-S3-ZERO
@@ -98,7 +100,7 @@ json{
   "device_id": "DOSING_UNIT_001",
   "device_type": "dosing_system",
   "unix_time": <timestamp>,
-  "channel_id": 1-6,
+  "channel_id":info/Specyfikacja Dozera.md 1-6,
   "event_type": "DOSE_EXECUTED|DOSE_MISSED|DOSE_MANUAL|CALIBRATION|CONFIG_CHANGED",
   "volume_ml": <float>,
   "dosing_duration": <seconds>,
