@@ -1,0 +1,33 @@
+Poniższe informacje nadpisują wszystkie wcześniejsze, jeżeli tylko wprowadzają zmiany!!! 
+Zmieniamy algorytm działania dozownika i podejście do działania. Masz nową strukturę działania timing w pliku: 'timing.txt'.
+Każdy z sześciu kanałów ma na sztywno przypisane czasy dla 24 zdarzeń. Każdy punkt czasowy z tabeli jest początkiem 'okienka czasowego' trwającego 300 sekund (definiowane w conf).
+Maksymalny czas pracy pompy to 180 sekund(definiowane w conf). Pozostałe 300 s to rezerwa. Każde 'event' dla każdego kanału ma swój index (0 - 23) oraz flagę ustawioną po wykonaniu cyklu pompy.
+W każdej pętli system sprawdza czas i jeżeli osiągnie on kolejne okienko, to sprawdza czy nie ma np obsługi wysyłania logów na serwer VPS itp, sprawdza też flagę, 
+jeżli jest nieustawiona przechodzi do obsługi zdarzenia.
+Flaga dla danego zdarzenia zostanie ustawiona po wykonaniu zdarzenia, ale drugim powiadomiEniem o zdarzeniu będzie info otrzymywana na gpio sterownika (każdy kanał ma swóje gpio kontyrolne).
+Będzie ono podpięte do przekaźnika silnika przez transoptor. system po 2 sekundach od startu pompy sprawdzi jego stan i następnie po 1 sekudzie powtórzy sprawdzanie(debauncing)(WAŻNE! ta 
+dodatkowa funkcja walidacji pracy pompy ma mieć możliwość globalnego wyłączenie w conf).
+Niezaliczenie sprawdzenia przerwie natychmiast cykl i zaczeka 30 sekund. Jeżeli będzie to nadal okienko czasowe, to system powtórzy próbę. 
+Każda z kart w interfejsie reprezentujących kanał jest nieaktywna 'wyszarzona' do czasu zaznaczenie pierwszego checkbox eventu. Od tego momentu karta sygnalizuje konieczność wprowadzenia
+wartości 'daily dose' oraz zaznaczenia check box dla dni tygodnia poprzez graficzne powiadomienie(zaproponuj coś zgodnego ze standardami).
+Po wprowadzeniu niezbędnych danych karta kanmału informuje o poprawnym skonfigurowaniu.
+Każda karta ma interface do przeprowadzenia kalibracji pompy- button włączający pompę na 30 sekund i input do wprowadzenia objętości cieczy w 'ml'. 
+System policzy czas pracy pompy dla 1 ml w ms.
+Minimalna pojedyńcza dawka to 1 ml (definiowane w conf), a największa to wynik wartości kalibracji i maksymalnego czasu pompy, czyli 180 sekund.
+Zawsze wprowadzany jest tylko parametr 'daily dose' i na podstawie liczby zaznaczonych event zostaje automatycznie obliczony 'single dose'.
+Weekly dose jest sumą wszystkich 'single dose' i jest widoczny na każdej karcie kanału.
+'Today's Added' Volume to suma wszystkich eventów a 'Today’s Remaining Volume' to 'daily dose' minus wszystkie events.
+Po każdym wykonanym events (zaznaczona flaga) zostaje ponownie obliczony 'single dose'. Umożliwia to wprowadzanie zmian w każdym momencie. 
+Jeżeli po zmianach w dashboard wystąpi sytuacja. że wartość 'Today’s Remaining Volume' osiągnie wartość 0 ml lub mniej 
+to na karcie zostanie wyświetlona informacja o zrealizowanych dawkach nawet jeżeli są jeszcze zaznaczone późniejsze 'check box'. Zresztą system podczas 'okienka' sprawdzi wartość 'Today’s Remaining Volume'.
+Dzięki temu uprościmy działanie systemu, nie trzeba monitorować 'check box', są tylko triggerem dla cyklu.
+Oczywiście zatwierdzenie zmian w dashboard też generuje ponownie obliczenie parametrów
+By kolejne przeliczenia dawek nie generowały znaczących zmian w bloku 'volume' karty operuj w kodzie na float do dwóch/trzech miejsc po przecinku a wartości podawaj do jednego miejsca po przecinku (o,1ml)
+Sprawdź i wyszukaj nieścisłości i zadaj krytyczne pytania...
+
+
+
+Pytanie: Czy eventy są aktywne tylko w zaznaczone dni tygodnia->tak
+2. Skąd pochodzi daily_dose?-> prawidłowo zdanie powinno brzmieć: 'Zawsze wprowadzany jest tylko parametr 'daily dose''
+
+
