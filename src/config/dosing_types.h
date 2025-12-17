@@ -61,8 +61,10 @@ enum PumpState : uint8_t {
 
 // ============================================================================
 // CHANNEL CONFIGURATION (przechowywana w FRAM)
-// Rozmiar: 32 bajty (z paddingiem)
+// Rozmiar: 32 bajty (packed)
 // ============================================================================
+
+#pragma pack(push, 1)
 
 /**
  * Konfiguracja pojedynczego kanału
@@ -128,13 +130,17 @@ struct ChannelConfig {
     }
 };
 
+#pragma pack(pop)
+
 // Weryfikacja rozmiaru struktury
 static_assert(sizeof(ChannelConfig) == 32, "ChannelConfig must be 32 bytes");
 
 // ============================================================================
 // DAILY STATE (resetowany o północy)
-// Rozmiar: 16 bajtów
+// Rozmiar: 16 bajtów (packed)
 // ============================================================================
+
+#pragma pack(push, 1)
 
 /**
  * Stan dzienny kanału - resetowany o 00:00 UTC
@@ -171,12 +177,16 @@ struct ChannelDailyState {
     }
 };
 
+#pragma pack(pop)
+
 static_assert(sizeof(ChannelDailyState) == 16, "ChannelDailyState must be 16 bytes");
 
 // ============================================================================
 // SYSTEM STATE (globalny stan systemu)
-// Rozmiar: 32 bajty
+// Rozmiar: 32 bajty (packed)
 // ============================================================================
+
+#pragma pack(push, 1)
 
 /**
  * Globalny stan systemu
@@ -200,12 +210,16 @@ struct SystemState {
     uint8_t  _padding[4];           // Padding do 32 bajtów
 };
 
+#pragma pack(pop)
+
 static_assert(sizeof(SystemState) == 32, "SystemState must be 32 bytes");
 
 // ============================================================================
 // ERROR STATE (stan błędu krytycznego)
-// Rozmiar: 16 bajtów
+// Rozmiar: 16 bajtów (packed)
 // ============================================================================
+
+#pragma pack(push, 1)
 
 /**
  * Informacje o błędzie krytycznym
@@ -220,6 +234,8 @@ struct ErrorState {
     uint32_t error_data;            // Dodatkowe dane (zależne od typu błędu)
     uint32_t crc32;                 // CRC32
 };
+
+#pragma pack(pop)
 
 static_assert(sizeof(ErrorState) == 16, "ErrorState must be 16 bytes");
 

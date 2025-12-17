@@ -48,6 +48,8 @@
 #define FRAM_ADDR_HEADER            0x0000
 #define FRAM_SIZE_HEADER            32
 
+#pragma pack(push, 1)
+
 struct FramHeader {
     uint32_t magic;             // FRAM_MAGIC_NUMBER
     uint16_t layout_version;    // FRAM_LAYOUT_VERSION
@@ -58,6 +60,8 @@ struct FramHeader {
     uint8_t  _reserved[11];     // Padding
     uint32_t header_crc;        // CRC32 headera
 };
+
+#pragma pack(pop)
 
 static_assert(sizeof(FramHeader) == FRAM_SIZE_HEADER, "FramHeader size mismatch");
 
@@ -121,6 +125,8 @@ static_assert(sizeof(FramHeader) == FRAM_SIZE_HEADER, "FramHeader size mismatch"
 #define FRAM_ADDR_AUTH_DATA         0x0410
 #define FRAM_SIZE_AUTH_DATA         64
 
+#pragma pack(push, 1)
+
 struct AuthData {
     uint8_t  password_hash[32];     // SHA-256 hash
     uint8_t  salt[16];              // Random salt
@@ -129,6 +135,8 @@ struct AuthData {
     uint8_t  _reserved[10];         // Padding
     uint32_t crc32;                 // CRC32
 };
+
+#pragma pack(pop)
 
 static_assert(sizeof(AuthData) == FRAM_SIZE_AUTH_DATA, "AuthData size mismatch");
 
@@ -148,6 +156,8 @@ static_assert(sizeof(AuthData) == FRAM_SIZE_AUTH_DATA, "AuthData size mismatch")
 #define FRAM_ADDR_VPS_LOG_BUFFER    0x04D0
 #define FRAM_SIZE_VPS_LOG_BUFFER    256
 
+#pragma pack(push, 1)
+
 struct VpsLogBuffer {
     uint8_t  pending_logs;          // Liczba oczekujących logów (0-3)
     uint8_t  _reserved[3];
@@ -162,6 +172,8 @@ struct VpsLogBuffer {
     
     uint32_t crc32;
 };
+
+#pragma pack(pop)
 
 static_assert(sizeof(VpsLogBuffer) <= FRAM_SIZE_VPS_LOG_BUFFER, "VpsLogBuffer too large");
 
