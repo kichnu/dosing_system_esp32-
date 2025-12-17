@@ -1,14 +1,15 @@
-
-
 #include "html_pages.h"
 
+// ============================================================================
+// LOGIN PAGE
+// ============================================================================
 const char* LOGIN_HTML = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Top Off Water - Login</title>
+    <title>DOZOWNIK - Login</title>
     <style>
         :root {
             --bg-primary: #0a0f1a;
@@ -26,11 +27,7 @@ const char* LOGIN_HTML = R"rawliteral(
             --radius-sm: 8px;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
@@ -45,10 +42,7 @@ const char* LOGIN_HTML = R"rawliteral(
         body::before {
             content: '';
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            top: 0; left: 0; right: 0; bottom: 0;
             background: 
                 radial-gradient(ellipse at 20% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 50%),
                 radial-gradient(ellipse at 80% 100%, rgba(34, 211, 213, 0.06) 0%, transparent 50%);
@@ -87,25 +81,12 @@ const char* LOGIN_HTML = R"rawliteral(
             justify-content: center;
         }
 
-        .logo-icon svg {
-            width: 24px;
-            height: 24px;
-            fill: var(--bg-primary);
-        }
+        .logo-icon svg { width: 24px; height: 24px; fill: var(--bg-primary); }
 
-        h1 {
-            font-size: 1.25rem;
-            font-weight: 700;
-        }
+        h1 { font-size: 1.25rem; font-weight: 700; }
+        h1 span { color: var(--text-muted); font-weight: 500; }
 
-        h1 span {
-            color: var(--text-muted);
-            font-weight: 500;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
+        .form-group { margin-bottom: 20px; }
 
         label {
             display: block;
@@ -155,9 +136,6 @@ const char* LOGIN_HTML = R"rawliteral(
             border-radius: var(--radius-sm);
             display: none;
             font-size: 0.875rem;
-        }
-
-        .alert.error {
             background: rgba(239, 68, 68, 0.15);
             border: 1px solid rgba(239, 68, 68, 0.3);
             color: var(--accent-red);
@@ -172,18 +150,16 @@ const char* LOGIN_HTML = R"rawliteral(
             color: var(--text-muted);
         }
 
-        .info strong {
-            color: var(--text-secondary);
-        }
+        .info strong { color: var(--text-secondary); }
     </style>
 </head>
 <body>
     <div class="login-box">
         <div class="logo">
             <div class="logo-icon">
-                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
             </div>
-            <h1>Top Off Water <span>– System</span></h1>
+            <h1>DOZOWNIK <span>– System</span></h1>
         </div>
         <form id="loginForm">
             <div class="form-group">
@@ -192,12 +168,11 @@ const char* LOGIN_HTML = R"rawliteral(
             </div>
             <button type="submit" class="login-btn">Login</button>
         </form>
-        <div id="error" class="alert error"></div>
+        <div id="error" class="alert"></div>
         <div class="info">
-            <strong>Security Features:</strong><br />
-            • Session-based authentication<br />
-            • Rate limiting & IP filtering<br />
-            • VPS event logging
+            <strong>Dosing System v1.0</strong><br />
+            6-channel automatic fertilizer doser<br />
+            Session-based authentication
         </div>
     </div>
     <script>
@@ -211,8 +186,8 @@ const char* LOGIN_HTML = R"rawliteral(
                 headers: { "Content-Type": "application/x-www-form-urlencoded" },
                 body: "password=" + encodeURIComponent(password),
             })
-            .then((response) => response.json())
-            .then((data) => {
+            .then(r => r.json())
+            .then(data => {
                 if (data.success) {
                     window.location.href = "/";
                 } else {
@@ -220,8 +195,8 @@ const char* LOGIN_HTML = R"rawliteral(
                     errorDiv.style.display = "block";
                 }
             })
-            .catch((error) => {
-                errorDiv.textContent = "Connection error - Check if device is running";
+            .catch(() => {
+                errorDiv.textContent = "Connection error";
                 errorDiv.style.display = "block";
             });
         });
@@ -230,1296 +205,1800 @@ const char* LOGIN_HTML = R"rawliteral(
 </html>
 )rawliteral";
 
+// ============================================================================
+// DASHBOARD PAGE
+// ============================================================================
 const char* DASHBOARD_HTML = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Top Off Water - System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>DOZOWNIK - Dashboard</title>
     <style>
-        :root {
-            --bg-primary: #0a0f1a;
-            --bg-card: #111827;
-            --bg-card-hover: #1a2332;
-            --bg-input: #1e293b;
-            --border: #2d3a4f;
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
-            --text-muted: #64748b;
-            --accent-blue: #38bdf8;
-            --accent-cyan: #22d3d5;
-            --accent-green: #22c55e;
-            --accent-red: #ef4444;
-            --accent-orange: #f97316;
-            --accent-yellow: #eab308;
-            --shadow: 0 4px 24px rgba(0,0,0,0.4);
-            --radius: 12px;
-            --radius-sm: 8px;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            min-height: 100vh;
-            line-height: 1.5;
-        }
-
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: 
-                radial-gradient(ellipse at 20% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 100%, rgba(34, 211, 213, 0.06) 0%, transparent 50%);
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 16px;
-            position: relative;
-            z-index: 1;
-        }
-
-        /* Header */
-        header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 0 24px;
-            border-bottom: 1px solid var(--border);
-            margin-bottom: 24px;
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .logo-icon {
-            width: 40px;
-            height: 40px;
-            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
-            border-radius: var(--radius-sm);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .logo-icon svg {
-            width: 24px;
-            height: 24px;
-            fill: var(--bg-primary);
-        }
-
-        h1 {
-            font-size: 1.25rem;
-            font-weight: 700;
-            letter-spacing: -0.02em;
-        }
-
-        h1 span {
-            color: var(--text-muted);
-            font-weight: 500;
-        }
-
-        .btn-back {
-            background: var(--bg-input);
-            border: 1px solid var(--border);
-            color: var(--text-secondary);
-            padding: 8px 16px;
-            border-radius: var(--radius-sm);
-            font-size: 0.875rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn-back:hover {
-            background: var(--bg-card-hover);
-            color: var(--text-primary);
-        }
-
-        /* Notifications */
-        .notifications {
-            position: fixed;
-            top: 16px;
-            right: 16px;
-            z-index: 100;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .alert {
-            padding: 12px 16px;
-            border-radius: var(--radius-sm);
-            font-size: 0.875rem;
-            font-weight: 500;
-            animation: slideIn 0.3s ease;
-        }
-
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        .alert.success {
-            background: rgba(34, 197, 94, 0.15);
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            color: var(--accent-green);
-        }
-
-        .alert.error {
-            background: rgba(239, 68, 68, 0.15);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-            color: var(--accent-red);
-        }
-
-        /* Cards */
-        .card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 20px;
-            margin-bottom: 16px;
-            box-shadow: var(--shadow);
-        }
-
-        .card-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 16px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .card-header h2 {
-            font-size: 0.9rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-secondary);
-        }
-
-        .card-header-icon {
-            width: 28px;
-            height: 28px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .card-header-icon svg {
-            width: 16px;
-            height: 16px;
-        }
-
-        /* ===== FIRST CARD: System Status ===== */
-        .status-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .status-row {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-        }
-
-        @media (max-width: 600px) {
-            .status-row {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .status-badge {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background: var(--bg-input);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            padding: 10px 14px;
-            position: relative;
-        }
-
-        .status-badge .label {
-            font-size: 0.65rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-muted);
-            margin-bottom: 4px;
-        }
-
-        .status-badge .value {
-            font-family: 'Courier New', monospace;
-            font-size: 0.875rem;
-            font-weight: 600;
-        }
-
-        .status-badge.ok {
-            background: rgba(34, 197, 94, 0.15);
-            border-color: rgba(34, 197, 94, 0.3);
-        }
-        .status-badge.ok .value { color: var(--accent-green); }
-
-        .status-badge.off .value { color: var(--text-muted); }
-
-        .status-badge.idle .value { color: var(--accent-yellow); }
-
-        .status-badge.active {
-            background: rgba(34, 197, 94, 0.15);
-            border-color: rgba(34, 197, 94, 0.3);
-        }
-        .status-badge.active .value { color: var(--accent-green); }
-
-        .status-badge.warning {
-            background: rgba(234, 179, 8, 0.15);
-            border-color: rgba(234, 179, 8, 0.3);
-        }
-        .status-badge.warning .value { color: var(--accent-yellow); }
-
-        .status-badge.danger {
-            background: rgba(249, 115, 22, 0.15);
-            border-color: rgba(249, 115, 22, 0.3);
-        }
-        .status-badge.danger .value { color: var(--accent-orange); }
-
-        .status-badge.error {
-            background: rgba(239, 68, 68, 0.15);
-            border-color: rgba(239, 68, 68, 0.3);
-        }
-        .status-badge.error .value { color: var(--accent-red); }
-
-        .status-badge.ok::before {
-            content: '';
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            width: 6px;
-            height: 6px;
-            background: var(--accent-green);
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
-        }
-
-        .status-message {
-            background: var(--bg-input);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            padding: 12px 16px;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-
-        .status-message .main {
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 2px;
-        }
-
-        .status-message .sub {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-
-        .info-item {
-            display: flex;
-            align-items: center;
-            flex-direction: column;
-            background: var(--bg-input);
-            border-radius: var(--radius-sm);
-            padding: 12px;
-        }
-
-        .info-item .label {
-            font-size: 0.7rem;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-muted);
-            margin-bottom: 4px;
-        }
-
-        .info-item .value {
-            font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
-            font-weight: 500;
-            color: var(--text-primary);
-        }
-
-        .info-item .hint {
-            font-size: 0.7rem;
-            color: var(--text-muted);
-            margin-top: 2px;
-        }
-
-        .info-item.connected .value { color: var(--accent-green); }
-        .info-item.rtc-error .value { color: var(--accent-red); }
-
-        /* ===== SECOND CARD: Pump Control ===== */
-        .pump-controls {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
-        }
-
-        .btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 48px;
-            gap: 8px;
-            padding: 14px 20px;
-            border-radius: var(--radius-sm);
-            font-family: inherit;
-            font-size: 0.9rem;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none !important;
-        }
-
-        .btn svg {
-            width: 18px;
-            height: 18px;
-        }
-
-        .btn-primary {
-            background: rgba(34, 197, 94, 0.15);
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            color: var(--accent-green);
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
-        }
-
-        /* Stan OFF dla przycisków bistabilnych */
-        .btn-off {
-            background: var(--bg-input);
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            color: var(--text-secondary);
-        }
-
-        .btn-off:hover:not(:disabled) {
-            background: var(--bg-card-hover);
-            color: var(--text-primary);
-        }
-
-        .btn-secondary {
-            background: var(--bg-input);
-            border: 1px solid var(--border);
-            color: var(--text-secondary);
-        }
-
-        .btn-secondary:hover:not(:disabled) {
-            background: var(--bg-card-hover);
-            color: var(--text-primary);
-        }
-
-        .btn-small {
-            padding: 10px 16px;
-            font-size: 0.8rem;
-        }
-
-        /* ===== THIRD CARD: Statistics ===== */
-        .stats-columns {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            align-items: start;
-        }
-
-        @media (max-width: 600px) {
-            .stats-columns {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .stat-column {
-            background: var(--bg-input);
-            border-radius: var(--radius-sm);
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .stat-column .btn {
-            width: 100%;
-        }
-
-        .stat-content {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .stat-line {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.8rem;
-        }
-
-        .stat-line .stat-label {
-            color: var(--text-muted);
-        }
-
-        .stat-line .stat-value {
-            font-family: 'Courier New', monospace;
-            font-weight: 600;
-            color: var(--accent-green);
-        }
-
-        .stat-line .stat-value.neutral {
-            color: var(--text-primary);
-        }
-
-        /* Volume indicator */
-        .volume-indicator {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .volume-bar {
-            height: 8px;
-            background: var(--bg-primary);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .volume-bar-fill {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue));
-            border-radius: 4px;
-            transition: width 0.3s;
-        }
-
-        .volume-text {
-            font-family: 'Courier New', monospace;
-            font-size: 0.85rem;
-            color: var(--text-primary);
-            text-align: center;
-        }
-
-        /* ===== FOURTH CARD: Pump Settings ===== */
-        .settings-row {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 16px;
-            align-items: start;
-        }
-
-        @media (max-width: 600px) {
-            .settings-row {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .setting-item {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .setting-item.input-group {
-            background: var(--bg-input);
-            border-radius: var(--radius-sm);
-            padding: 12px;
-        }
-
-        .setting-item label {
-            font-size: 0.75rem;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-muted);
-        }
-
-        input[type="text"],
-        input[type="number"] {
-            background: var(--bg-primary);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            padding: 10px 14px;
-            font-family: 'Courier New', monospace;
-            font-size: 1rem;
-            color: var(--text-primary);
-            width: 100%;
-            text-align: center;
-        }
-
-        input:focus {
-            outline: none;
-            border-color: var(--accent-blue);
-            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
-        }
-
-        .current-value {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            text-align: center;
-            margin-top: 4px;
-        }
-
-        /* Footer */
-        .footer-info {
-            text-align: center;
-            padding: 16px;
-            color: var(--text-muted);
-            font-size: 0.75rem;
-        }
+/* ============================================================================
+   CSS VARIABLES
+   ============================================================================ */
+:root {
+    /* Backgrounds */
+    --bg-primary: #0a0f1a;
+    --bg-card: #111827;
+    --bg-card-hover: #1a2332;
+    --bg-input: #1e293b;
+    
+    /* Borders */
+    --border: #2d3a4f;
+    --border-light: #3d4a5f;
+    
+    /* Text */
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    
+    /* Accents */
+    --accent-blue: #38bdf8;
+    --accent-cyan: #22d3d5;
+    --accent-green: #22c55e;
+    --accent-red: #ef4444;
+    --accent-orange: #f97316;
+    --accent-yellow: #eab308;
+    
+    /* Channel states */
+    --state-inactive: #4b5563;
+    --state-incomplete: #eab308;
+    --state-invalid: #ef4444;
+    --state-configured: #22c55e;
+    --state-pending: #38bdf8;
+    
+    /* Radii */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    
+    /* Transitions */
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.25s ease;
+    --transition-slow: 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    
+    /* Card sizing */
+    --card-max-width: 400px;
+    --card-padding: 12px;
+    --section-gap: 10px;
+    --section-padding: 10px;
+    
+    /* Element sizing */
+    --event-slot-height: 38px;
+    --day-slot-height: 36px;
+    --input-height: 38px;
+    --btn-height: 40px;
+    --header-height: 44px;
+    --footer-height: 56px;
+    
+    /* Font sizes */
+    --font-xs: 0.6rem;
+    --font-sm: 0.7rem;
+    --font-md: 0.8rem;
+    --font-lg: 0.95rem;
+    
+    /* Mobile */
+    --swipe-threshold: 50px;
+}
+
+/* ============================================================================
+   RESET & BASE
+   ============================================================================ */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+    height: 100%;
+    overflow: hidden;
+    touch-action: pan-y;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.4;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: 
+        radial-gradient(ellipse at 20% 0%, rgba(56, 189, 248, 0.06) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(34, 211, 213, 0.04) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* ============================================================================
+   NAVIGATION - MOBILE LAYOUT
+   ============================================================================ */
+.app-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: 1;
+}
+
+.vertical-slider {
+    display: flex;
+    flex-direction: column;
+    height: 200%;
+    transition: transform var(--transition-slow);
+}
+
+.vertical-slider.show-channels {
+    transform: translateY(-50%);
+}
+
+/* Header Screen */
+.header-screen {
+    height: 50%;
+    min-height: 50%;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    overflow-y: auto;
+}
+
+.header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+    flex-shrink: 0;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.logo-icon {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logo-icon svg {
+    width: 18px;
+    height: 18px;
+    fill: var(--bg-primary);
+}
+
+.logo-text {
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.logo-text span {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.header-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.btn-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.btn-icon:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+}
+
+.btn-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* System Status */
+.system-status {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+}
+
+.status-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+    font-size: var(--font-sm);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+}
+
+.status-header svg {
+    width: 12px;
+    height: 12px;
+}
+
+.status-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.status-item {
+    background: var(--bg-input);
+    border-radius: var(--radius-sm);
+    padding: 8px;
+    text-align: center;
+}
+
+.status-item .label {
+    font-size: var(--font-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+}
+
+.status-item .value {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: var(--font-md);
+    font-weight: 600;
+}
+
+.status-item.ok .value { color: var(--accent-green); }
+.status-item.warning .value { color: var(--accent-yellow); }
+.status-item.error .value { color: var(--accent-red); }
+
+/* Channels Overview */
+.channels-overview {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.overview-title {
+    font-size: var(--font-sm);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+}
+
+.overview-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.channel-preview {
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    position: relative;
+}
+
+.channel-preview:hover {
+    border-color: var(--border-light);
+    transform: translateY(-2px);
+}
+
+.channel-preview:active {
+    transform: translateY(0);
+}
+
+.channel-preview.inactive { opacity: 0.5; border-color: var(--state-inactive); }
+.channel-preview.incomplete { border-color: var(--state-incomplete); }
+.channel-preview.invalid { border-color: var(--state-invalid); }
+.channel-preview.configured { border-color: var(--state-configured); }
+.channel-preview.pending { border-color: var(--state-pending); }
+
+.channel-preview .ch-num {
+    font-size: var(--font-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.channel-preview .ch-dose {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: var(--font-lg);
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+}
+
+.channel-preview.inactive .ch-dose { color: var(--text-muted); }
+
+.channel-preview .ch-info {
+    font-size: var(--font-xs);
+    color: var(--text-muted);
+}
+
+.channel-preview .state-dot {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--state-inactive);
+}
+
+.channel-preview.incomplete .state-dot { background: var(--state-incomplete); }
+.channel-preview.invalid .state-dot { background: var(--state-invalid); }
+.channel-preview.configured .state-dot { background: var(--state-configured); animation: pulse 2s infinite; }
+.channel-preview.pending .state-dot { background: var(--state-pending); animation: pulse 1.5s infinite; }
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Swipe Hint */
+.swipe-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px;
+    color: var(--text-muted);
+    font-size: var(--font-sm);
+    flex-shrink: 0;
+}
+
+.swipe-hint svg {
+    width: 14px;
+    height: 14px;
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(4px); }
+}
+
+/* Channels Screen */
+.channels-screen {
+    height: 50%;
+    min-height: 50%;
+    position: relative;
+    overflow: hidden;
+}
+
+.horizontal-slider {
+    display: flex;
+    height: 100%;
+    transition: transform var(--transition-slow);
+}
+
+/* Channel Dots */
+.channel-dots {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+    z-index: 10;
+}
+
+.channel-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--border);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.channel-dot:hover { background: var(--text-muted); }
+
+.channel-dot.active {
+    background: var(--accent-cyan);
+    width: 18px;
+    border-radius: 3px;
+}
+
+/* ============================================================================
+   CHANNEL CARD
+   ============================================================================ */
+.channel-card {
+    flex: 0 0 100%;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-primary);
+    overflow: hidden;
+}
+
+/* Card Header */
+.card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px var(--card-padding);
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    height: var(--header-height);
+    flex-shrink: 0;
+}
+
+.channel-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.channel-number {
+    font-size: var(--font-md);
+    font-weight: 700;
+}
+
+.state-badge {
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: var(--font-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.state-badge.inactive { background: rgba(75, 85, 99, 0.2); color: var(--state-inactive); }
+.state-badge.incomplete { background: rgba(234, 179, 8, 0.15); color: var(--state-incomplete); }
+.state-badge.invalid { background: rgba(239, 68, 68, 0.15); color: var(--state-invalid); }
+.state-badge.configured { background: rgba(34, 197, 94, 0.15); color: var(--state-configured); }
+.state-badge.pending { background: rgba(56, 189, 248, 0.15); color: var(--state-pending); }
+
+.back-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: var(--font-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.back-btn:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+}
+
+.back-btn svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* Card Content */
+.card-content {
+    flex: 1;
+    padding: var(--card-padding);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--section-gap);
+}
+
+/* Section */
+.section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px var(--section-padding);
+    background: rgba(0,0,0,0.2);
+    border-bottom: 1px solid var(--border);
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--font-sm);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+}
+
+.section-title svg {
+    width: 12px;
+    height: 12px;
+    color: var(--accent-cyan);
+}
+
+.section-info {
+    font-size: var(--font-xs);
+    color: var(--text-muted);
+}
+
+.section-body {
+    padding: var(--section-padding);
+}
+
+/* Events Grid */
+.events-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
+}
+
+.event-slot { position: relative; }
+
+.event-cb { display: none; }
+
+.event-lbl {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: var(--event-slot-height);
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.event-lbl:hover {
+    border-color: var(--accent-cyan);
+    background: var(--bg-card-hover);
+}
+
+.event-cb:checked + .event-lbl {
+    background: rgba(34, 211, 213, 0.15);
+    border-color: var(--accent-cyan);
+}
+
+.event-time {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: var(--font-xs);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.event-cb:checked + .event-lbl .event-time { color: var(--accent-cyan); }
+
+.event-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    margin-top: 3px;
+    background: transparent;
+}
+
+.event-cb:checked + .event-lbl .event-dot { background: var(--accent-cyan); }
+
+.event-slot.done .event-lbl {
+    background: rgba(34, 197, 94, 0.15);
+    border-color: var(--accent-green);
+}
+.event-slot.done .event-time { color: var(--accent-green); }
+.event-slot.done .event-dot { background: var(--accent-green); }
+
+.event-slot.next .event-lbl {
+    background: rgba(234, 179, 8, 0.15);
+    border-color: var(--accent-yellow);
+    animation: pulse-border 2s infinite;
+}
+.event-slot.next .event-time { color: var(--accent-yellow); }
+
+@keyframes pulse-border {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.4); }
+    50% { box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.1); }
+}
+
+/* Days Grid */
+.days-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.day-slot { position: relative; }
+
+.day-cb { display: none; }
+
+.day-lbl {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: var(--day-slot-height);
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.day-lbl:hover {
+    border-color: var(--accent-cyan);
+    background: var(--bg-card-hover);
+}
+
+.day-cb:checked + .day-lbl {
+    background: rgba(34, 211, 213, 0.15);
+    border-color: var(--accent-cyan);
+}
+
+.day-name {
+    font-size: var(--font-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary);
+}
+
+.day-cb:checked + .day-lbl .day-name { color: var(--accent-cyan); }
+
+.day-slot.today .day-lbl { border-width: 2px; }
+.day-slot.today .day-name::after {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    background: var(--accent-yellow);
+    border-radius: 50%;
+    margin-left: 3px;
+    vertical-align: middle;
+}
+
+/* Volume Section */
+.volume-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.volume-group { flex: 1; }
+
+.volume-label {
+    display: block;
+    font-size: var(--font-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.volume-input {
+    width: 100%;
+    height: var(--input-height);
+    padding: 0 10px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: var(--font-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: center;
+}
+
+.volume-input:focus {
+    outline: none;
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 0 2px rgba(34, 211, 213, 0.15);
+}
+
+.volume-unit {
+    font-size: var(--font-sm);
+    font-weight: 600;
+    color: var(--text-muted);
+    padding-bottom: 10px;
+}
+
+.calc-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+}
+
+.calc-item {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px;
+    text-align: center;
+}
+
+.calc-lbl {
+    font-size: var(--font-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+}
+
+.calc-val {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: var(--font-md);
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.calc-item.hl .calc-val { color: var(--accent-cyan); }
+.calc-item.ok .calc-val { color: var(--accent-green); }
+.calc-item.warn .calc-val { color: var(--accent-yellow); }
+
+/* Calibration Section */
+.calib-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+}
+
+.calib-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: var(--btn-height);
+    background: rgba(34, 211, 213, 0.1);
+    border: 1px solid var(--accent-cyan);
+    border-radius: var(--radius-sm);
+    color: var(--accent-cyan);
+    font-size: var(--font-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.calib-btn:hover { background: rgba(34, 211, 213, 0.2); }
+.calib-btn:active { transform: scale(0.98); }
+
+.calib-btn.running {
+    background: rgba(234, 179, 8, 0.15);
+    border-color: var(--accent-yellow);
+    color: var(--accent-yellow);
+    pointer-events: none;
+}
+
+.calib-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.calib-input-group { width: 80px; }
+
+.calib-label {
+    display: block;
+    font-size: var(--font-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.calib-input {
+    width: 100%;
+    height: var(--input-height);
+    padding: 0 6px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: var(--font-md);
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: center;
+}
+
+.calib-input:focus {
+    outline: none;
+    border-color: var(--accent-cyan);
+}
+
+/* Validation Message */
+.valid-msg {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-sm);
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.valid-msg svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.valid-msg.err {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: var(--accent-red);
+}
+
+.valid-msg.warn {
+    background: rgba(234, 179, 8, 0.1);
+    border: 1px solid rgba(234, 179, 8, 0.3);
+    color: var(--accent-yellow);
+}
+
+.valid-msg.info {
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: var(--accent-blue);
+}
+
+.valid-msg.ok {
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    color: var(--accent-green);
+}
+
+/* Card Footer */
+.card-footer {
+    padding: 10px var(--card-padding);
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    height: var(--footer-height);
+    flex-shrink: 0;
+}
+
+.btn {
+    flex: 1;
+    height: var(--btn-height);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+    border: none;
+    color: var(--bg-primary);
+}
+
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(34, 211, 213, 0.3);
+}
+
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-secondary {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+}
+
+.btn-secondary:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+}
+
+/* Pending Banner */
+.pending-banner {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px var(--card-padding);
+    background: rgba(56, 189, 248, 0.1);
+    border-bottom: 1px solid rgba(56, 189, 248, 0.3);
+    font-size: var(--font-sm);
+    color: var(--accent-blue);
+    flex-shrink: 0;
+}
+
+.pending-banner svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* ============================================================================
+   DESKTOP MEDIA QUERIES
+   ============================================================================ */
+@media (min-width: 769px) {
+    .vertical-slider {
+        height: 100%;
+        flex-direction: row;
+    }
+
+    .vertical-slider.show-channels {
+        transform: none;
+    }
+
+    .header-screen {
+        width: 280px;
+        min-width: 280px;
+        height: 100%;
+        border-right: 1px solid var(--border);
+    }
+
+    .channels-screen {
+        flex: 1;
+        height: 100%;
+    }
+
+    .swipe-hint,
+    .back-btn,
+    .channel-dots {
+        display: none;
+    }
+
+    .horizontal-slider {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: repeat(3, 1fr);
+        gap: 12px;
+        padding: 12px;
+        overflow-y: auto;
+        height: 100%;
+    }
+
+    .channel-card {
+        flex: none;
+        width: auto;
+        height: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        background: var(--bg-card);
+        max-height: 100%;
+    }
+
+    .card-content {
+        overflow-y: auto;
+    }
+}
+
+@media (min-width: 1100px) {
+    .header-screen {
+        width: 300px;
+        min-width: 300px;
+    }
+
+    .horizontal-slider {
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 1400px) {
+    .header-screen {
+        width: 320px;
+        min-width: 320px;
+    }
+
+    .horizontal-slider {
+        gap: 16px;
+        padding: 16px;
+    }
+}
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header>
-            <div class="logo">
-                <div class="logo-icon">
-                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-                </div>
-                <h1>Top Off Water <span>– System</span></h1>
-            </div>
-            <button class="btn-back" onclick="logout()">Back</button>
-        </header>
-
-        <!-- Notifications container -->
-        <div id="notifications" class="notifications"></div>
-
-        <!-- FIRST CARD: System Status -->
-        <div class="card">
-            <div class="card-header">
-                <div class="card-header-icon" style="background: rgba(56, 189, 248, 0.15);">
-                    <svg fill="currentColor" style="color: var(--accent-blue);" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-                </div>
-                <h2>System Status</h2>
-            </div>
-
-            <div class="status-grid">
-                <!-- Row 1: sensor1, sensor2, pump -->
-                <div class="status-row">
-                    <div class="status-badge off" id="sensor1Badge">
-                        <span class="label">Sensor 1</span>
-                        <span class="value">OFF</span>
-                    </div>
-                    <div class="status-badge off" id="sensor2Badge">
-                        <span class="label">Sensor 2</span>
-                        <span class="value">OFF</span>
-                    </div>
-                    <div class="status-badge idle" id="pumpBadge">
-                        <span class="label">Pump</span>
-                        <span class="value">IDLE</span>
-                    </div>
-                </div>
-
-                <!-- Row 2: system, status-message, wifi status -->
-                <div class="status-row">
-                    <div class="status-badge ok" id="systemBadge">
-                        <span class="label">System</span>
-                        <span class="value">OK</span>
-                    </div>
-                    <div class="status-message">
-                        <div class="main" id="processDescription">IDLE - Waiting for sensors</div>
-                        <div class="sub" id="processTime">—</div>
-                    </div>
-                    <div class="info-item connected" id="wifiItem">
-                        <span class="label">WiFi Status</span>
-                        <span class="value" id="wifiStatus">Loading...</span>
-                    </div>
-                </div>
-
-                <!-- Row 3: RTC Time, Free Memory, Uptime -->
-                <div class="status-row">
-                    <div class="info-item" id="rtcItem">
-                        <span class="label">RTC Time (UTC)</span>
-                        <span class="value" id="rtcTime">Loading...</span>
-                        <span class="hint" id="rtcHint"></span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Free Memory</span>
-                        <span class="value" id="freeHeap">Loading...</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Uptime</span>
-                        <span class="value" id="uptime">Loading...</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- SECOND CARD: Pump Control -->
-        <div class="card">
-            <div class="card-header">
-                <div class="card-header-icon" style="background: rgba(34, 197, 94, 0.15);">
-                    <svg fill="currentColor" style="color: var(--accent-green);" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
-                </div>
-                <h2>Pump Control</h2>
-            </div>
-
-            <div class="pump-controls">
-                <button id="manualCycleBtn" class="btn btn-off" onclick="toggleManualCycle()">
-                    Manual Cycle Off
-                </button>
-                <button id="systemToggleBtn" class="btn btn-primary" onclick="toggleSystem()">
-                    System On
-                </button>
-            </div>
-        </div>
-
-        <!-- THIRD CARD: Statistics -->
-        <div class="card">
-            <div class="card-header">
-                <div class="card-header-icon" style="background: rgba(234, 179, 8, 0.15);">
-                    <svg fill="currentColor" style="color: var(--accent-yellow);" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
-                </div>
-                <h2>Statistics</h2>
-            </div>
-
-            <div class="stats-columns">
-                <!-- Column 1: Load Statistics + errors -->
-                <div class="stat-column">
-                    <button id="loadStatsBtn" class="btn btn-secondary btn-small" onclick="manualLoadStatistics()">Load Statistics</button>
-                    <div class="stat-content">
-                        <div class="stat-line">
-                            <span class="stat-label">Err activate:</span>
-                            <span class="stat-value" id="gap1Value">—</span>
+    <div class="app-container">
+        <div class="vertical-slider" id="verticalSlider">
+            
+            <!-- HEADER SCREEN -->
+            <div class="header-screen">
+                <div class="header-bar">
+                    <div class="logo">
+                        <div class="logo-icon">
+                            <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                         </div>
-                        <div class="stat-line">
-                            <span class="stat-label">Err deactivate:</span>
-                            <span class="stat-value" id="gap2Value">—</span>
+                        <div class="logo-text">DOZOWNIK <span>– Sys</span></div>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn-icon" title="Logout" onclick="logout()">
+                            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+                                <polyline points="16,17 21,12 16,7"/>
+                                <line x1="21" y1="12" x2="9" y2="12"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="system-status">
+                    <div class="status-header">
+                        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                        System Status
+                    </div>
+                    <div class="status-grid">
+                        <div class="status-item ok" id="sysStatus">
+                            <div class="label">System</div>
+                            <div class="value">OK</div>
                         </div>
-                        <div class="stat-line">
-                            <span class="stat-label">Err pump:</span>
-                            <span class="stat-value" id="waterValue">—</span>
+                        <div class="status-item">
+                            <div class="label">Time</div>
+                            <div class="value" id="sysTime">--:--</div>
+                        </div>
+                        <div class="status-item" id="wifiStatus">
+                            <div class="label">WiFi</div>
+                            <div class="value">--</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Column 2: Reset Statistics + last reset -->
-                <div class="stat-column">
-                    <button id="resetStatsBtn" class="btn btn-secondary btn-small" onclick="resetStatistics()">Reset Statistics</button>
-                    <div class="stat-content">
-                        <div class="stat-line">
-                            <span class="stat-label">Last Reset:</span>
-                            <span class="stat-value neutral" id="resetTime">—</span>
-                        </div>
-                    </div>
+                <div class="channels-overview">
+                    <div class="overview-title">Channels</div>
+                    <div class="overview-grid" id="overviewGrid"></div>
                 </div>
 
-                <!-- Column 3: Reset Daily Volume + bar -->
-                <div class="stat-column">
-                    <button id="resetDailyVolumeBtn" class="btn btn-secondary btn-small" onclick="resetDailyVolume()">Reset Daily Volume</button>
-                    <div class="stat-content">
-                        <div class="volume-indicator">
-                            <div class="volume-bar">
-                                <div class="volume-bar-fill" id="volumeBarFill"></div>
-                            </div>
-                            <div class="volume-text" id="volumeText">0 ml / 2000 ml</div>
-                        </div>
-                    </div>
+                <div class="swipe-hint">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <polyline points="6,9 12,15 18,9"/>
+                    </svg>
+                    Swipe down for channels
                 </div>
             </div>
-        </div>
 
-        <!-- FOURTH CARD: Pump Setting -->
-        <div class="card">
-            <div class="card-header">
-                <div class="card-header-icon" style="background: rgba(249, 115, 22, 0.15);">
-                    <svg fill="currentColor" style="color: var(--accent-orange);" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-                </div>
-                <h2>Pump Setting</h2>
+            <!-- CHANNELS SCREEN -->
+            <div class="channels-screen">
+                <div class="horizontal-slider" id="horizontalSlider"></div>
+                <div class="channel-dots" id="channelDots"></div>
             </div>
 
-            <div class="settings-row">
-                <!-- Element 1: Pump Calibration button -->
-                <div class="setting-item">
-                    <button id="extendedBtn" class="btn btn-secondary" onclick="triggerExtendedPump()">Pump Calibration (30s)</button>
-                </div>
-
-                <!-- Element 2: Input z opisem -->
-                <div class="setting-item input-group">
-                    <label for="volumePerSecond">Volume per Second (ml)</label>
-                    <input type="number" id="volumePerSecond" min="0.1" max="50.0" step="0.1" value="1.0">
-                </div>
-
-                <!-- Element 3: Update Setting + current value -->
-                <div class="setting-item">
-                    <button class="btn btn-primary" onclick="updateVolumePerSecond()">Update Setting</button>
-                    <span class="current-value" id="volumeStatus">Current: — ml/s</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="footer-info">
-            Top Off Water System • v2.0
         </div>
     </div>
 
-    <script>
-        // ============================================
-        // STATE TRACKING
-        // ============================================
-        let systemEnabled = true;
-        let manualCycleActive = false;
-        let pumpCheckInterval = null;
-        let maxDailyVolume = 2000;
+<script>
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+const CFG = {
+    CHANNEL_COUNT: 6,
+    EVENTS_PER_DAY: 23,
+    FIRST_EVENT_HOUR: 1,
+    CHANNEL_OFFSET_MIN: 10,
+    EVENT_WINDOW_SEC: 300,
+    MAX_PUMP_SEC: 180,
+    MIN_DOSE_ML: 1.0,
+    CALIB_SEC: 30,
+    SWIPE_THRESHOLD: 50
+};
 
-        // ============================================
-        // NOTIFICATION HELPER
-        // ============================================
-        function showNotification(message, type) {
-            const notifications = document.getElementById("notifications");
-            const alert = document.createElement("div");
-            alert.className = "alert " + type;
-            alert.textContent = message;
-            notifications.appendChild(alert);
+const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 
-            setTimeout(() => {
-                if (notifications.contains(alert)) {
-                    alert.style.opacity = '0';
-                    alert.style.transform = 'translateX(100%)';
-                    setTimeout(() => notifications.removeChild(alert), 300);
-                }
-            }, 4000);
+// ============================================================================
+// STATE
+// ============================================================================
+let channels = [];
+let currentCh = 0;
+let showingChannels = false;
+let touchStart = {x:0, y:0};
+
+// ============================================================================
+// INIT
+// ============================================================================
+function init() {
+    // Initialize channel data
+    for (let i = 0; i < CFG.CHANNEL_COUNT; i++) {
+        channels.push({
+            id: i,
+            events: 0,          // bitmask (bits 1-23)
+            days: 0,            // bitmask (bits 0-6)
+            dailyDose: 0,
+            dosingRate: 0.33,   // ml/s from calibration
+            eventsCompleted: 0, // bitmask of completed today
+            state: 'inactive'
+        });
+    }
+    
+    // Demo data for channel 0
+    channels[0] = {
+        id: 0,
+        events: (1<<6)|(1<<10)|(1<<14)|(1<<18),  // 06,10,14,18
+        days: 0b0011111,  // Mon-Fri
+        dailyDose: 15.0,
+        dosingRate: 0.33,
+        eventsCompleted: (1<<6)|(1<<10),
+        state: 'configured'
+    };
+    
+    channels[1] = {
+        id: 1,
+        events: (1<<8)|(1<<16),
+        days: 0b1111111,
+        dailyDose: 20.0,
+        dosingRate: 0.33,
+        eventsCompleted: 0,
+        state: 'pending'
+    };
+
+    renderOverview();
+    renderChannels();
+    renderDots();
+    setupTouch();
+    updateClock();
+    setInterval(updateClock, 1000);
+    
+    // Load data from API
+    loadStatus();
+    setInterval(loadStatus, 5000);
+}
+
+// ============================================================================
+// RENDER
+// ============================================================================
+function renderOverview() {
+    const grid = document.getElementById('overviewGrid');
+    grid.innerHTML = channels.map((ch, i) => {
+        const evCnt = popcount(ch.events);
+        const single = evCnt > 0 ? (ch.dailyDose / evCnt).toFixed(1) : '0.0';
+        return `
+            <div class="channel-preview ${ch.state}" onclick="goToChannel(${i})">
+                <div class="state-dot"></div>
+                <div class="ch-num">CH ${i+1}</div>
+                <div class="ch-dose">${ch.dailyDose > 0 ? ch.dailyDose.toFixed(1)+' ml' : 'Off'}</div>
+                <div class="ch-info">${evCnt > 0 ? evCnt+'× '+single+'ml' : 'Tap to setup'}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderChannels() {
+    const slider = document.getElementById('horizontalSlider');
+    slider.innerHTML = channels.map((ch, idx) => renderChannelCard(ch, idx)).join('');
+    
+    // Attach event listeners
+    channels.forEach((ch, idx) => {
+        attachCardEvents(idx);
+    });
+}
+
+function renderChannelCard(ch, idx) {
+    const evCnt = popcount(ch.events);
+    const dayCnt = popcount(ch.days);
+    const single = evCnt > 0 ? ch.dailyDose / evCnt : 0;
+    const pumpTime = ch.dosingRate > 0 ? single / ch.dosingRate : 0;
+    const weekly = ch.dailyDose * dayCnt;
+    const completedCnt = popcount(ch.eventsCompleted);
+    
+    // Determine next event
+    const now = new Date();
+    const currentHour = now.getHours();
+    let nextEvent = -1;
+    for (let h = CFG.FIRST_EVENT_HOUR; h <= 23; h++) {
+        if ((ch.events & (1 << h)) && !(ch.eventsCompleted & (1 << h)) && h >= currentHour) {
+            nextEvent = h;
+            break;
         }
+    }
+    
+    // Today's day index (0=Mon)
+    const todayIdx = (now.getDay() + 6) % 7;
+    
+    // Validation
+    let validClass = 'ok';
+    let validMsg = 'Configuration valid';
+    let validIcon = '<path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/>';
+    
+    if (evCnt === 0) {
+        validClass = 'info';
+        validMsg = 'Select time slots to activate';
+        validIcon = '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>';
+    } else if (dayCnt === 0) {
+        validClass = 'warn';
+        validMsg = 'Select active days';
+        validIcon = '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>';
+    } else if (ch.dailyDose <= 0) {
+        validClass = 'warn';
+        validMsg = 'Enter daily dose';
+        validIcon = '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>';
+    } else if (single < CFG.MIN_DOSE_ML) {
+        validClass = 'err';
+        validMsg = `Single dose ${single.toFixed(1)}ml < min ${CFG.MIN_DOSE_ML}ml`;
+        validIcon = '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
+    } else if (pumpTime > CFG.MAX_PUMP_SEC) {
+        validClass = 'err';
+        validMsg = `Pump time ${pumpTime.toFixed(0)}s > max ${CFG.MAX_PUMP_SEC}s`;
+        validIcon = '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
+    }
 
-        // ============================================
-        // SYSTEM TOGGLE (bistable ON/OFF)
-        // ============================================
-        function toggleSystem() {
-            const btn = document.getElementById("systemToggleBtn");
-            btn.disabled = true;
+    // Events HTML
+    let eventsHtml = '';
+    for (let h = CFG.FIRST_EVENT_HOUR; h <= 23; h++) {
+        const checked = (ch.events & (1 << h)) ? 'checked' : '';
+        const done = (ch.eventsCompleted & (1 << h)) ? 'done' : '';
+        const next = (h === nextEvent) ? 'next' : '';
+        const timeStr = String(h).padStart(2,'0') + ':' + String(idx * CFG.CHANNEL_OFFSET_MIN).padStart(2,'0');
+        eventsHtml += `
+            <div class="event-slot ${done} ${next}">
+                <input type="checkbox" id="ev_${idx}_${h}" class="event-cb" data-ch="${idx}" data-hour="${h}" ${checked}>
+                <label for="ev_${idx}_${h}" class="event-lbl">
+                    <span class="event-time">${timeStr}</span>
+                    <span class="event-dot"></span>
+                </label>
+            </div>
+        `;
+    }
+    
+    // Days HTML
+    let daysHtml = '';
+    DAYS.forEach((name, d) => {
+        const checked = (ch.days & (1 << d)) ? 'checked' : '';
+        const today = (d === todayIdx) ? 'today' : '';
+        daysHtml += `
+            <div class="day-slot ${today}">
+                <input type="checkbox" id="day_${idx}_${d}" class="day-cb" data-ch="${idx}" data-day="${d}" ${checked}>
+                <label for="day_${idx}_${d}" class="day-lbl">
+                    <span class="day-name">${name}</span>
+                </label>
+            </div>
+        `;
+    });
 
-            fetch("api/system-toggle", { method: "POST" })
-                .then((response) => response.json())
-                .then((data) => {
-                    if (data.success) {
-                        systemEnabled = data.enabled;
-                        updateSystemToggleButton(data.enabled, data.remaining_seconds);
-                        showNotification(data.message, "success");
-                    } else {
-                        showNotification("Failed to toggle system", "error");
-                    }
-                })
-                .catch((error) => {
-                    showNotification("Network error", "error");
-                })
-                .finally(() => {
-                    btn.disabled = false;
-                });
-        }
-
-        function updateSystemToggleButton(enabled, remainingSeconds) {
-            const btn = document.getElementById("systemToggleBtn");
-            if (!btn) return;
-
-            if (enabled) {
-                btn.textContent = "System On";
-                btn.className = "btn btn-primary";
-            } else {
-                if (remainingSeconds && remainingSeconds > 0) {
-                    const minutes = Math.floor(remainingSeconds / 60);
-                    const seconds = remainingSeconds % 60;
-                    btn.textContent = "System Off (" + minutes + ":" + seconds.toString().padStart(2, "0") + ")";
-                } else {
-                    btn.textContent = "System Off";
-                }
-                btn.className = "btn btn-off";
-            }
-        }
-
-        function loadSystemState() {
-            fetch("api/system-toggle")
-                .then((response) => response.json())
-                .then((data) => {
-                    if (data.success) {
-                        systemEnabled = data.enabled;
-                        updateSystemToggleButton(data.enabled, data.remaining_seconds);
-                    }
-                })
-                .catch((error) => console.error("Failed to load system state:", error));
-        }
-
-        // ============================================
-        // MANUAL CYCLE TOGGLE (bistable with auto-reset)
-        // ============================================
-        function toggleManualCycle() {
-            const btn = document.getElementById("manualCycleBtn");
+    return `
+        <div class="channel-card" data-ch="${idx}">
+            ${ch.state === 'pending' ? `
+            <div class="pending-banner">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>
+                </svg>
+                Changes pending – active from tomorrow
+            </div>
+            ` : ''}
             
-            if (manualCycleActive) {
-                btn.disabled = true;
-                btn.textContent = "Stopping...";
-
-                fetch("api/pump/stop", { method: "POST" })
-                    .then((response) => response.json())
-                    .then((data) => {
-                        if (data.success) {
-                            manualCycleActive = false;
-                            updateManualCycleButton(false);
-                            showNotification("Manual cycle stopped", "success");
-                            stopPumpMonitoring();
-                        } else {
-                            showNotification("Failed to stop pump", "error");
-                        }
-                    })
-                    .catch(() => showNotification("Connection error", "error"))
-                    .finally(() => {
-                        btn.disabled = false;
-                    });
-            } else {
-                btn.disabled = true;
-                btn.textContent = "Starting...";
-
-                fetch("api/pump/normal", { method: "POST" })
-                    .then((response) => response.json())
-                    .then((data) => {
-                        if (data.success) {
-                            manualCycleActive = true;
-                            updateManualCycleButton(true);
-                            showNotification("Manual cycle started for " + data.duration + "s", "success");
-                            startPumpMonitoring();
-                        } else {
-                            showNotification("Failed to start pump", "error");
-                        }
-                    })
-                    .catch(() => showNotification("Connection error", "error"))
-                    .finally(() => {
-                        btn.disabled = false;
-                    });
-            }
-        }
-
-        function updateManualCycleButton(isActive) {
-            const btn = document.getElementById("manualCycleBtn");
-            if (!btn) return;
-
-            if (isActive) {
-                btn.textContent = "Manual Cycle On";
-                btn.className = "btn btn-primary";
-            } else {
-                btn.textContent = "Manual Cycle Off";
-                btn.className = "btn btn-off";
-            }
-        }
-
-        function startPumpMonitoring() {
-            if (pumpCheckInterval) clearInterval(pumpCheckInterval);
+            <div class="card-header">
+                <div class="channel-title">
+                    <span class="channel-number">Channel ${idx+1}</span>
+                    <span class="state-badge ${ch.state}">${getStateLabel(ch.state)}</span>
+                </div>
+                <button class="back-btn" onclick="showNav()">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <polyline points="15,18 9,12 15,6"/>
+                    </svg>
+                    Back
+                </button>
+            </div>
             
-            pumpCheckInterval = setInterval(() => {
-                fetch("api/status")
-                    .then((response) => response.json())
-                    .then((data) => {
-                        if (!data.pump_active && manualCycleActive) {
-                            manualCycleActive = false;
-                            updateManualCycleButton(false);
-                            stopPumpMonitoring();
-                        }
-                    })
-                    .catch(() => {});
-            }, 1000);
-        }
+            <div class="card-content">
+                <!-- TIME SCHEDULE -->
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-title">
+                            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>
+                            </svg>
+                            Time Schedule
+                        </div>
+                        <div class="section-info" id="evInfo_${idx}">${evCnt} of 23</div>
+                    </div>
+                    <div class="section-body">
+                        <div class="events-grid">${eventsHtml}</div>
+                    </div>
+                </div>
+                
+                <!-- ACTIVE DAYS -->
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-title">
+                            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                                <line x1="3" y1="10" x2="21" y2="10"/>
+                            </svg>
+                            Active Days
+                        </div>
+                        <div class="section-info" id="dayInfo_${idx}">${dayCnt} of 7</div>
+                    </div>
+                    <div class="section-body">
+                        <div class="days-grid">${daysHtml}</div>
+                    </div>
+                </div>
+                
+                <!-- VOLUME -->
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-title">
+                            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                <path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+                            </svg>
+                            Dosing Volume
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        <div class="volume-row">
+                            <div class="volume-group">
+                                <label class="volume-label">Daily Dose</label>
+                                <input type="number" class="volume-input" id="dose_${idx}" 
+                                       value="${ch.dailyDose}" step="0.1" min="0" data-ch="${idx}">
+                            </div>
+                            <span class="volume-unit">ml/day</span>
+                        </div>
+                        <div class="calc-grid">
+                            <div class="calc-item hl">
+                                <div class="calc-lbl">Single Dose</div>
+                                <div class="calc-val" id="single_${idx}">${single.toFixed(1)} ml</div>
+                            </div>
+                            <div class="calc-item">
+                                <div class="calc-lbl">Pump Time</div>
+                                <div class="calc-val" id="pumpTime_${idx}">${pumpTime.toFixed(1)} s</div>
+                            </div>
+                            <div class="calc-item">
+                                <div class="calc-lbl">Weekly</div>
+                                <div class="calc-val" id="weekly_${idx}">${weekly.toFixed(1)} ml</div>
+                            </div>
+                            <div class="calc-item ok">
+                                <div class="calc-lbl">Today</div>
+                                <div class="calc-val" id="today_${idx}">${completedCnt} / ${evCnt}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- CALIBRATION -->
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-title">
+                            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+                            </svg>
+                            Calibration
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        <div class="calib-row">
+                            <button class="calib-btn" id="calibBtn_${idx}" onclick="runCalib(${idx})">
+                                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <polygon points="5,3 19,12 5,21 5,3"/>
+                                </svg>
+                                Run Pump (30s)
+                            </button>
+                            <div class="calib-input-group">
+                                <label class="calib-label">Measured</label>
+                                <input type="number" class="calib-input" id="calibMl_${idx}" 
+                                       placeholder="ml" step="0.1" data-ch="${idx}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- VALIDATION -->
+                <div class="valid-msg ${validClass}" id="validMsg_${idx}">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">${validIcon}</svg>
+                    <span id="validTxt_${idx}">${validMsg}</span>
+                </div>
+            </div>
+            
+            <div class="card-footer">
+                <button class="btn btn-secondary" onclick="cancelChanges(${idx})">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                    Cancel
+                </button>
+                <button class="btn btn-primary" id="saveBtn_${idx}" onclick="saveChanges(${idx})">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+                        <polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/>
+                    </svg>
+                    Save
+                </button>
+            </div>
+        </div>
+    `;
+}
 
-        function stopPumpMonitoring() {
-            if (pumpCheckInterval) {
-                clearInterval(pumpCheckInterval);
-                pumpCheckInterval = null;
+function attachCardEvents(idx) {
+    // Event checkboxes
+    document.querySelectorAll(`.event-cb[data-ch="${idx}"]`).forEach(cb => {
+        cb.addEventListener('change', () => updateChannel(idx));
+    });
+    
+    // Day checkboxes
+    document.querySelectorAll(`.day-cb[data-ch="${idx}"]`).forEach(cb => {
+        cb.addEventListener('change', () => updateChannel(idx));
+    });
+    
+    // Dose input
+    const doseInput = document.getElementById(`dose_${idx}`);
+    if (doseInput) {
+        doseInput.addEventListener('input', () => updateChannel(idx));
+    }
+    
+    // Calibration input
+    const calibInput = document.getElementById(`calibMl_${idx}`);
+    if (calibInput) {
+        calibInput.addEventListener('change', () => calcCalibration(idx));
+    }
+}
+
+function renderDots() {
+    const dots = document.getElementById('channelDots');
+    dots.innerHTML = channels.map((_, i) => 
+        `<div class="channel-dot ${i === currentCh ? 'active' : ''}" onclick="goToChannel(${i})"></div>`
+    ).join('');
+}
+
+// ============================================================================
+// CHANNEL UPDATE
+// ============================================================================
+function updateChannel(idx) {
+    const ch = channels[idx];
+    
+    // Read events bitmask
+    let events = 0;
+    document.querySelectorAll(`.event-cb[data-ch="${idx}"]:checked`).forEach(cb => {
+        events |= (1 << parseInt(cb.dataset.hour));
+    });
+    ch.events = events;
+    
+    // Read days bitmask
+    let days = 0;
+    document.querySelectorAll(`.day-cb[data-ch="${idx}"]:checked`).forEach(cb => {
+        days |= (1 << parseInt(cb.dataset.day));
+    });
+    ch.days = days;
+    
+    // Read daily dose
+    const doseInput = document.getElementById(`dose_${idx}`);
+    ch.dailyDose = parseFloat(doseInput.value) || 0;
+    
+    // Calculate
+    const evCnt = popcount(ch.events);
+    const dayCnt = popcount(ch.days);
+    const single = evCnt > 0 ? ch.dailyDose / evCnt : 0;
+    const pumpTime = ch.dosingRate > 0 ? single / ch.dosingRate : 0;
+    const weekly = ch.dailyDose * dayCnt;
+    const completedCnt = popcount(ch.eventsCompleted);
+    
+    // Update display
+    document.getElementById(`evInfo_${idx}`).textContent = `${evCnt} of 23`;
+    document.getElementById(`dayInfo_${idx}`).textContent = `${dayCnt} of 7`;
+    document.getElementById(`single_${idx}`).textContent = `${single.toFixed(1)} ml`;
+    document.getElementById(`pumpTime_${idx}`).textContent = `${pumpTime.toFixed(1)} s`;
+    document.getElementById(`weekly_${idx}`).textContent = `${weekly.toFixed(1)} ml`;
+    document.getElementById(`today_${idx}`).textContent = `${completedCnt} / ${evCnt}`;
+    
+    // Validation
+    const validMsg = document.getElementById(`validMsg_${idx}`);
+    const validTxt = document.getElementById(`validTxt_${idx}`);
+    const saveBtn = document.getElementById(`saveBtn_${idx}`);
+    
+    validMsg.className = 'valid-msg';
+    let icon = '';
+    
+    if (evCnt === 0) {
+        validMsg.classList.add('info');
+        validTxt.textContent = 'Select time slots to activate';
+        icon = '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>';
+        saveBtn.disabled = false;
+        ch.state = 'inactive';
+    } else if (dayCnt === 0) {
+        validMsg.classList.add('warn');
+        validTxt.textContent = 'Select active days';
+        icon = '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>';
+        saveBtn.disabled = true;
+        ch.state = 'incomplete';
+    } else if (ch.dailyDose <= 0) {
+        validMsg.classList.add('warn');
+        validTxt.textContent = 'Enter daily dose';
+        icon = '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>';
+        saveBtn.disabled = true;
+        ch.state = 'incomplete';
+    } else if (single < CFG.MIN_DOSE_ML) {
+        validMsg.classList.add('err');
+        validTxt.textContent = `Single dose ${single.toFixed(1)}ml < min ${CFG.MIN_DOSE_ML}ml`;
+        icon = '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
+        saveBtn.disabled = true;
+        ch.state = 'invalid';
+    } else if (pumpTime > CFG.MAX_PUMP_SEC) {
+        validMsg.classList.add('err');
+        validTxt.textContent = `Pump time ${pumpTime.toFixed(0)}s > max ${CFG.MAX_PUMP_SEC}s`;
+        icon = '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
+        saveBtn.disabled = true;
+        ch.state = 'invalid';
+    } else {
+        validMsg.classList.add('ok');
+        validTxt.textContent = 'Configuration valid';
+        icon = '<path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/>';
+        saveBtn.disabled = false;
+        ch.state = 'configured';
+    }
+    
+    validMsg.querySelector('svg').innerHTML = icon;
+    
+    // Update state badge
+    const badge = document.querySelector(`.channel-card[data-ch="${idx}"] .state-badge`);
+    if (badge) {
+        badge.className = `state-badge ${ch.state}`;
+        badge.textContent = getStateLabel(ch.state);
+    }
+    
+    // Update overview
+    renderOverview();
+}
+
+// ============================================================================
+// CALIBRATION
+// ============================================================================
+function runCalib(idx) {
+    const btn = document.getElementById(`calibBtn_${idx}`);
+    btn.classList.add('running');
+    btn.innerHTML = `<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>
+    </svg> Running...`;
+    
+    // API call would go here
+    fetch(`api/calibrate?channel=${idx}`, { method: 'POST' })
+        .then(r => r.json())
+        .catch(() => ({}));
+    
+    // Simulate 30s countdown
+    let remaining = CFG.CALIB_SEC;
+    const timer = setInterval(() => {
+        remaining--;
+        btn.innerHTML = `<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>
+        </svg> ${remaining}s`;
+        
+        if (remaining <= 0) {
+            clearInterval(timer);
+            btn.classList.remove('running');
+            btn.innerHTML = `<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <polygon points="5,3 19,12 5,21 5,3"/>
+            </svg> Run Pump (30s)`;
+        }
+    }, 1000);
+}
+
+function calcCalibration(idx) {
+    const ml = parseFloat(document.getElementById(`calibMl_${idx}`).value) || 0;
+    if (ml > 0) {
+        channels[idx].dosingRate = ml / CFG.CALIB_SEC;
+        updateChannel(idx);
+    }
+}
+
+// ============================================================================
+// SAVE / CANCEL
+// ============================================================================
+function saveChanges(idx) {
+    const ch = channels[idx];
+    
+    const payload = {
+        channel: idx,
+        events: ch.events,
+        days: ch.days,
+        dailyDose: ch.dailyDose,
+        dosingRate: ch.dosingRate
+    };
+    
+    fetch('api/dosing-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            ch.state = 'pending';
+            renderChannels();
+            renderOverview();
+            alert('Configuration saved. Changes active from tomorrow.');
+        } else {
+            alert('Save failed: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(() => alert('Connection error'));
+}
+
+function cancelChanges(idx) {
+    // Reload from server
+    loadStatus();
+}
+
+// ============================================================================
+// NAVIGATION
+// ============================================================================
+function showChannels() {
+    showingChannels = true;
+    document.getElementById('verticalSlider').classList.add('show-channels');
+}
+
+function showNav() {
+    showingChannels = false;
+    document.getElementById('verticalSlider').classList.remove('show-channels');
+}
+
+function goToChannel(idx) {
+    currentCh = idx;
+    updateSlider();
+    renderDots();
+    if (window.innerWidth <= 768) showChannels();
+}
+
+function updateSlider() {
+    const slider = document.getElementById('horizontalSlider');
+    if (window.innerWidth <= 768) {
+        slider.style.transform = `translateX(-${currentCh * 100}%)`;
+    }
+}
+
+function nextCh() { if (currentCh < CFG.CHANNEL_COUNT - 1) goToChannel(currentCh + 1); }
+function prevCh() { if (currentCh > 0) goToChannel(currentCh - 1); }
+
+// ============================================================================
+// TOUCH
+// ============================================================================
+function setupTouch() {
+    const container = document.querySelector('.app-container');
+    
+    container.addEventListener('touchstart', e => {
+        touchStart.x = e.changedTouches[0].screenX;
+        touchStart.y = e.changedTouches[0].screenY;
+    }, { passive: true });
+    
+    container.addEventListener('touchend', e => {
+        const dx = e.changedTouches[0].screenX - touchStart.x;
+        const dy = e.changedTouches[0].screenY - touchStart.y;
+        const threshold = CFG.SWIPE_THRESHOLD;
+        
+        if (Math.abs(dx) > Math.abs(dy)) {
+            if (showingChannels) {
+                if (dx < -threshold) nextCh();
+                else if (dx > threshold) prevCh();
             }
+        } else {
+            if (dy < -threshold && !showingChannels) showChannels();
+            else if (dy > threshold && showingChannels) showNav();
         }
+    }, { passive: true });
+}
 
-        // ============================================
-        // EXTENDED PUMP (Calibration)
-        // ============================================
-        function triggerExtendedPump() {
-            const btn = document.getElementById("extendedBtn");
-            btn.disabled = true;
-            btn.textContent = "Starting...";
-
-            fetch("api/pump/extended", { method: "POST" })
-                .then((response) => response.json())
-                .then((data) => {
-                    if (data.success) {
-                        showNotification("Calibration pump started for " + data.duration + "s", "success");
-                    } else {
-                        showNotification("Failed to start pump", "error");
+// ============================================================================
+// API
+// ============================================================================
+function loadStatus() {
+    fetch('api/dosing-status')
+        .then(r => r.json())
+        .then(data => {
+            if (data.channels) {
+                data.channels.forEach((chData, i) => {
+                    if (channels[i]) {
+                        channels[i].events = chData.events || 0;
+                        channels[i].days = chData.days || 0;
+                        channels[i].dailyDose = chData.dailyDose || 0;
+                        channels[i].dosingRate = chData.dosingRate || 0.33;
+                        channels[i].eventsCompleted = chData.eventsCompleted || 0;
+                        channels[i].state = chData.state || 'inactive';
                     }
-                })
-                .catch(() => showNotification("Connection error", "error"))
-                .finally(() => {
-                    btn.disabled = false;
-                    btn.textContent = "Pump Calibration (30s)";
                 });
-        }
-
-        // ============================================
-        // VOLUME SETTINGS
-        // ============================================
-        function loadVolumePerSecond() {
-            fetch("api/pump-settings")
-                .then((response) => response.json())
-                .then((data) => {
-                    if (data.success) {
-                        document.getElementById("volumePerSecond").value = parseFloat(data.volume_per_second).toFixed(1);
-                        document.getElementById("volumeStatus").textContent = "Current: " + parseFloat(data.volume_per_second).toFixed(1) + " ml/s";
-                    }
-                })
-                .catch((error) => {
-                    console.error("Failed to load volume setting:", error);
-                });
-        }
-
-        function updateVolumePerSecond() {
-            const volumeInput = document.getElementById("volumePerSecond");
-            const statusSpan = document.getElementById("volumeStatus");
-            const volumeValue = parseFloat(volumeInput.value);
-
-            if (volumeValue < 0.1 || volumeValue > 50.0) {
-                statusSpan.textContent = "Error: 0.1-50.0 range";
-                return;
+                renderChannels();
+                renderOverview();
             }
-
-            if (!confirm("Change Volume per Second to " + volumeValue.toFixed(1) + " ml/s?")) {
-                return;
+            
+            // System status
+            if (data.systemOk !== undefined) {
+                const sysEl = document.getElementById('sysStatus');
+                sysEl.className = 'status-item ' + (data.systemOk ? 'ok' : 'error');
+                sysEl.querySelector('.value').textContent = data.systemOk ? 'OK' : 'ERROR';
             }
-
-            statusSpan.textContent = "Updating...";
-
-            const formData = new FormData();
-            formData.append("volume_per_second", volumeValue);
-
-            fetch("api/pump-settings", { method: "POST", body: formData })
-                .then((response) => response.json())
-                .then((data) => {
-                    if (data.success) {
-                        statusSpan.textContent = "Current: " + volumeValue.toFixed(1) + " ml/s";
-                        showNotification("Volume updated to " + volumeValue.toFixed(1) + " ml/s", "success");
-                    } else {
-                        statusSpan.textContent = "Error: " + (data.error || "Update failed");
-                    }
-                })
-                .catch((error) => {
-                    statusSpan.textContent = "Network error";
-                });
-        }
-
-        // ============================================
-        // STATUS BADGE UPDATES
-        // ============================================
-        function updateSensorBadge(badgeId, isActive) {
-            const badge = document.getElementById(badgeId);
-            if (!badge) return;
-
-            const valueSpan = badge.querySelector(".value");
-            badge.className = "status-badge";
-
-            if (isActive) {
-                badge.classList.add("active");
-                valueSpan.textContent = "ON";
-            } else {
-                badge.classList.add("off");
-                valueSpan.textContent = "OFF";
+            
+            if (data.wifiConnected !== undefined) {
+                const wifiEl = document.getElementById('wifiStatus');
+                wifiEl.className = 'status-item ' + (data.wifiConnected ? 'ok' : '');
+                wifiEl.querySelector('.value').textContent = data.wifiConnected ? 'OK' : 'OFF';
             }
-        }
+        })
+        .catch(() => {});
+}
 
-        function updatePumpBadge(badgeId, isActive, attempt) {
-            const badge = document.getElementById(badgeId);
-            if (!badge) return;
+// ============================================================================
+// UTILITIES
+// ============================================================================
+function popcount(n) {
+    let count = 0;
+    while (n) { count += n & 1; n >>>= 1; }
+    return count;
+}
 
-            const valueSpan = badge.querySelector(".value");
-            badge.className = "status-badge";
+function getStateLabel(state) {
+    return { inactive:'Inactive', incomplete:'Setup', invalid:'Invalid', configured:'Active', pending:'Pending' }[state] || state;
+}
 
-            if (!isActive) {
-                badge.classList.add("idle");
-                valueSpan.textContent = "IDLE";
-            } else {
-                if (attempt === 1) {
-                    badge.classList.add("active");
-                } else if (attempt === 2) {
-                    badge.classList.add("warning");
-                } else if (attempt >= 3) {
-                    badge.classList.add("danger");
-                } else {
-                    badge.classList.add("active");
-                }
-                valueSpan.textContent = "ACTIVE";
-            }
-        }
+function updateClock() {
+    const now = new Date();
+    document.getElementById('sysTime').textContent = now.toLocaleTimeString('pl-PL', {
+        timeZone: 'Europe/Warsaw',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
 
-        function updateSystemBadge(badgeId, hasError, isDisabled) {
-            const badge = document.getElementById(badgeId);
-            if (!badge) return;
+function logout() {
+    if (confirm('Logout?')) {
+        fetch('api/logout', { method: 'POST' }).then(() => location.href = '/login');
+    }
+}
 
-            const valueSpan = badge.querySelector(".value");
-            badge.className = "status-badge";
+window.addEventListener('resize', () => {
+    if (window.innerWidth > 768) {
+        document.getElementById('horizontalSlider').style.transform = '';
+    } else {
+        updateSlider();
+    }
+});
 
-            if (hasError) {
-                badge.classList.add("error");
-                valueSpan.textContent = "ERROR";
-            } else if (isDisabled) {
-                badge.classList.add("off");
-                valueSpan.textContent = "OFF";
-            } else {
-                badge.classList.add("ok");
-                valueSpan.textContent = "OK";
-            }
-        }
-
-        function formatTime(seconds) {
-            if (!seconds || seconds <= 0) return "—";
-            if (seconds < 60) return seconds + " sec";
-            const minutes = Math.floor(seconds / 60);
-            const secs = seconds % 60;
-            if (secs === 0) return minutes + " min";
-            return minutes + "m " + secs + "s";
-        }
-
-        function formatUptime(milliseconds) {
-            const seconds = Math.floor(milliseconds / 1000);
-            const hours = Math.floor(seconds / 3600);
-            const minutes = Math.floor((seconds % 3600) / 60);
-            return hours + "h " + minutes + "m";
-        }
-
-        // ============================================
-        // MAIN STATUS UPDATE
-        // ============================================
-        function updateStatus() {
-            fetch("api/status")
-                .then((response) => response.json())
-                .then((data) => {
-                    // Badges
-                    updateSensorBadge("sensor1Badge", data.sensor1_active);
-                    updateSensorBadge("sensor2Badge", data.sensor2_active);
-                    updatePumpBadge("pumpBadge", data.pump_active, data.pump_attempt || 0);
-                    updateSystemBadge("systemBadge", data.system_error, data.system_disabled);
-
-                    // Process status
-                    document.getElementById("processDescription").textContent = data.state_description || "IDLE - Waiting for sensors";
-                    document.getElementById("processTime").textContent = data.remaining_seconds > 0 ? "Remaining: " + formatTime(data.remaining_seconds) : "—";
-
-                    // System toggle sync
-                    if (typeof data.system_disabled !== 'undefined') {
-                        systemEnabled = !data.system_disabled;
-                        updateSystemToggleButton(!data.system_disabled, data.system_remaining_seconds);
-                    }
-
-                    // Manual cycle sync
-                    if (!data.pump_active && manualCycleActive) {
-                        manualCycleActive = false;
-                        updateManualCycleButton(false);
-                    }
-
-                    // WiFi status
-                    const wifiItem = document.getElementById("wifiItem");
-                    const wifiStatus = document.getElementById("wifiStatus");
-                    wifiStatus.textContent = data.wifi_status || "Unknown";
-                    if (data.wifi_connected) {
-                        wifiItem.className = "info-item connected";
-                    } else {
-                        wifiItem.className = "info-item";
-                    }
-
-                    // RTC
-                    const rtcItem = document.getElementById("rtcItem");
-                    const rtcTime = document.getElementById("rtcTime");
-                    const rtcHint = document.getElementById("rtcHint");
-                    
-                    rtcTime.textContent = data.rtc_time || "Error";
-                    
-                    if (data.rtc_battery_issue || data.rtc_needs_sync) {
-                        rtcItem.className = "info-item rtc-error";
-                        rtcHint.textContent = "⚠️ Battery issue - replace CR2032";
-                    } else {
-                        rtcItem.className = "info-item";
-                        rtcHint.textContent = data.rtc_info || "";
-                    }
-
-                    // Memory & Uptime
-                    document.getElementById("freeHeap").textContent = (data.free_heap / 1024).toFixed(1) + " KB";
-                    document.getElementById("uptime").textContent = formatUptime(data.uptime);
-
-                    // Disable buttons when needed
-                    const manualBtn = document.getElementById("manualCycleBtn");
-                    if (manualBtn) {
-                        manualBtn.disabled = data.system_disabled;
-                    }
-
-                    const extendedBtn = document.getElementById("extendedBtn");
-                    if (extendedBtn) {
-                        extendedBtn.disabled = data.pump_active;
-                    }
-                })
-                .catch((error) => {
-                    console.error("Status update failed:", error);
-                });
-        }
-
-        // ============================================
-        // STATISTICS FUNCTIONS
-        // ============================================
-        function loadStatistics() {
-            fetch("api/get-statistics")
-                .then((response) => response.json())
-                .then((data) => {
-                    if (data.success) {
-                        document.getElementById("gap1Value").textContent = data.gap1_fail_sum;
-                        document.getElementById("gap2Value").textContent = data.gap2_fail_sum;
-                        document.getElementById("waterValue").textContent = data.water_fail_sum;
-                        document.getElementById("resetTime").textContent = data.last_reset_formatted || "Unknown";
-                    }
-                })
-                .catch((error) => {
-                    console.error("Failed to load statistics:", error);
-                });
-        }
-
-        function manualLoadStatistics() {
-            const btn = document.getElementById("loadStatsBtn");
-            btn.disabled = true;
-            btn.textContent = "Loading...";
-
-            loadStatistics();
-
-            setTimeout(() => {
-                btn.disabled = false;
-                btn.textContent = "Load Statistics";
-            }, 1000);
-        }
-
-        function resetStatistics() {
-            if (!confirm("Reset all error statistics to zero?")) return;
-
-            const btn = document.getElementById("resetStatsBtn");
-            btn.disabled = true;
-            btn.textContent = "Resetting...";
-
-            fetch("api/reset-statistics", { method: "POST" })
-                .then((response) => response.json())
-                .then((data) => {
-                    if (data.success) {
-                        showNotification("Statistics reset", "success");
-                        loadStatistics();
-                    } else {
-                        showNotification("Failed to reset", "error");
-                    }
-                })
-                .catch(() => showNotification("Network error", "error"))
-                .finally(() => {
-                    btn.disabled = false;
-                    btn.textContent = "Reset Statistics";
-                });
-        }
-
-        // ============================================
-        // DAILY VOLUME FUNCTIONS
-        // ============================================
-        function loadDailyVolume() {
-            fetch("api/daily-volume")
-                .then((response) => response.json())
-                .then((data) => {
-                    if (data.success) {
-                        const current = data.daily_volume;
-                        maxDailyVolume = data.max_volume;
-                        const percent = Math.min((current / maxDailyVolume) * 100, 100);
-                        
-                        document.getElementById("volumeBarFill").style.width = percent + "%";
-                        document.getElementById("volumeText").textContent = current + " ml / " + maxDailyVolume + " ml";
-                    }
-                })
-                .catch((error) => {
-                    console.error("Failed to load daily volume:", error);
-                });
-        }
-
-        function resetDailyVolume() {
-            if (!confirm("Reset daily volume to 0ml?")) return;
-
-            const btn = document.getElementById("resetDailyVolumeBtn");
-            btn.disabled = true;
-            btn.textContent = "Resetting...";
-
-            fetch("api/reset-daily-volume", { method: "POST" })
-                .then((response) => response.json())
-                .then((data) => {
-                    if (data.success) {
-                        showNotification("Daily volume reset", "success");
-                        loadDailyVolume();
-                    } else {
-                        showNotification("Failed: " + (data.error || "Unknown error"), "error");
-                    }
-                })
-                .catch(() => showNotification("Network error", "error"))
-                .finally(() => {
-                    btn.disabled = false;
-                    btn.textContent = "Reset Daily Volume";
-                });
-        }
-
-        // ============================================
-        // LOGOUT
-        // ============================================
-        function logout() {
-            fetch("api/logout", { method: "POST" }).then(() => {
-                window.location.href = "/login";
-            });
-        }
-
-        // ============================================
-        // INITIALIZATION
-        // ============================================
-        setInterval(updateStatus, 2000);
-        updateStatus();
-
-        loadSystemState();
-        loadVolumePerSecond();
-        loadStatistics();
-        loadDailyVolume();
-
-        setInterval(loadSystemState, 30000);
-        setInterval(loadDailyVolume, 10000);
-    </script>
+document.addEventListener('DOMContentLoaded', init);
+</script>
 </body>
 </html>
 )rawliteral";
 
+// ============================================================================
+// GETTER FUNCTIONS
+// ============================================================================
 String getLoginHTML() {
     return String(LOGIN_HTML);
 }

@@ -29,5 +29,3 @@ Sprawdź i wyszukaj nieścisłości i zadaj krytyczne pytania...
 
 Pytanie: Czy eventy są aktywne tylko w zaznaczone dni tygodnia->tak
 2. Skąd pochodzi daily_dose?-> prawidłowo zdanie powinno brzmieć: 'Zawsze wprowadzany jest tylko parametr 'daily dose''
-
-

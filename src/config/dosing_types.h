@@ -1,0 +1,324 @@
+/**
+ * DOZOWNIK - Data Types & Structures
+ * 
+ * Definicje struktur danych używanych w całym systemie.
+ * Struktury są zaprojektowane do przechowywania w FRAM.
+ */
+
+#ifndef DOSING_TYPES_H
+#define DOSING_TYPES_H
+
+#include <Arduino.h>
+#include "config.h"
+
+// ============================================================================
+// ENUMERATIONS
+// ============================================================================
+
+/**
+ * Stan kanału (do wyświetlania w GUI)
+ */
+enum ChannelState : uint8_t {
+    CH_STATE_INACTIVE   = 0,    // Żaden event nie zaznaczony
+    CH_STATE_INCOMPLETE = 1,    // Brak dni lub dawki
+    CH_STATE_INVALID    = 2,    // Walidacja nie przeszła
+    CH_STATE_CONFIGURED = 3,    // Gotowy do pracy
+    CH_STATE_PENDING    = 4     // Zmiany oczekujące (od jutra)
+};
+
+/**
+ * Typ błędu krytycznego
+ */
+enum CriticalErrorType : uint8_t {
+    ERROR_NONE                  = 0,
+    ERROR_GPIO_VALIDATION_FAILED = 1,
+    ERROR_PUMP_TIMEOUT          = 2,
+    ERROR_FRAM_FAILURE          = 3,
+    ERROR_RTC_FAILURE           = 4,
+    ERROR_RELAY_STUCK           = 5,
+    ERROR_UNKNOWN               = 255
+};
+
+/**
+ * Status eventu
+ */
+enum EventStatus : uint8_t {
+    EVENT_PENDING   = 0,    // Oczekuje na wykonanie
+    EVENT_COMPLETED = 1,    // Wykonany pomyślnie
+    EVENT_SKIPPED   = 2,    // Pominięty (daily dose osiągnięte)
+    EVENT_FAILED    = 3     // Niepowodzenie
+};
+
+/**
+ * Stan pompy
+ */
+enum PumpState : uint8_t {
+    PUMP_IDLE       = 0,    // Pompa nieaktywna
+    PUMP_RUNNING    = 1,    // Pompa pracuje
+    PUMP_VALIDATING = 2,    // Oczekiwanie na walidację GPIO
+    PUMP_ERROR      = 3     // Błąd pompy
+};
+
+// ============================================================================
+// CHANNEL CONFIGURATION (przechowywana w FRAM)
+// Rozmiar: 32 bajty (z paddingiem)
+// ============================================================================
+
+/**
+ * Konfiguracja pojedynczego kanału
+ * Przechowywana w FRAM - dwie kopie: active i pending
+ */
+struct ChannelConfig {
+    // === Parametry użytkownika (12 bajtów) ===
+    uint32_t events_bitmask;    // Bit 1-23 = godziny 01:00-23:00 (bit 0 unused)
+    uint8_t  days_bitmask;      // Bit 0-6 = Pon-Ndz
+    uint8_t  _reserved1[3];     // Padding/alignment
+    float    daily_dose_ml;     // Dawka dzienna (ml)
+    
+    // === Parametry kalibracji (4 bajty) ===
+    float    dosing_rate;       // Wydajność pompy (ml/s) z kalibracji
+    
+    // === Flagi (4 bajty) ===
+    uint8_t  enabled;           // Czy kanał włączony (0/1)
+    uint8_t  has_pending;       // Czy są oczekujące zmiany (0/1)
+    uint8_t  _reserved2[2];     // Padding
+    
+    // === Checksum (4 bajty) ===
+    uint32_t crc32;             // CRC32 dla walidacji danych
+    
+    // === Padding do 32 bajtów ===
+    uint8_t  _padding[8];
+    
+    // ------------------------------------------
+    // Metody pomocnicze (inline)
+    // ------------------------------------------
+    
+    inline uint8_t getActiveEventsCount() const {
+        return popcount32(events_bitmask);
+    }
+    
+    inline uint8_t getActiveDaysCount() const {
+        return popcount8(days_bitmask);
+    }
+    
+    inline float getSingleDose() const {
+        uint8_t evCnt = getActiveEventsCount();
+        if (evCnt == 0 || daily_dose_ml <= 0) return 0.0f;
+        return daily_dose_ml / (float)evCnt;
+    }
+    
+    inline float getWeeklyDose() const {
+        return daily_dose_ml * (float)getActiveDaysCount();
+    }
+    
+    inline uint32_t getPumpDurationMs() const {
+        float single = getSingleDose();
+        if (dosing_rate <= 0 || single <= 0) return 0;
+        return (uint32_t)((single / dosing_rate) * 1000.0f);
+    }
+    
+    inline bool isEventEnabled(uint8_t hour) const {
+        if (hour < FIRST_EVENT_HOUR || hour > LAST_EVENT_HOUR) return false;
+        return BIT_CHECK(events_bitmask, hour);
+    }
+    
+    inline bool isDayEnabled(uint8_t dayOfWeek) const {
+        if (dayOfWeek > 6) return false;
+        return BIT_CHECK(days_bitmask, dayOfWeek);
+    }
+};
+
+// Weryfikacja rozmiaru struktury
+static_assert(sizeof(ChannelConfig) == 32, "ChannelConfig must be 32 bytes");
+
+// ============================================================================
+// DAILY STATE (resetowany o północy)
+// Rozmiar: 16 bajtów
+// ============================================================================
+
+/**
+ * Stan dzienny kanału - resetowany o 00:00 UTC
+ */
+struct ChannelDailyState {
+    uint32_t events_completed;  // Bitmask wykonanych eventów (bit 1-23)
+    float    today_added_ml;    // Suma dozowana dzisiaj (ml)
+    uint8_t  last_reset_day;    // Dzień ostatniego resetu (UTC day % 256)
+    uint8_t  _reserved[3];      // Padding
+    uint32_t crc32;             // CRC32
+    
+    // ------------------------------------------
+    // Metody pomocnicze
+    // ------------------------------------------
+    
+    inline uint8_t getCompletedCount() const {
+        return popcount32(events_completed);
+    }
+    
+    inline bool isEventCompleted(uint8_t hour) const {
+        if (hour < FIRST_EVENT_HOUR || hour > LAST_EVENT_HOUR) return false;
+        return BIT_CHECK(events_completed, hour);
+    }
+    
+    inline void markEventCompleted(uint8_t hour) {
+        if (hour >= FIRST_EVENT_HOUR && hour <= LAST_EVENT_HOUR) {
+            BIT_SET(events_completed, hour);
+        }
+    }
+    
+    inline void reset() {
+        events_completed = 0;
+        today_added_ml = 0.0f;
+    }
+};
+
+static_assert(sizeof(ChannelDailyState) == 16, "ChannelDailyState must be 16 bytes");
+
+// ============================================================================
+// SYSTEM STATE (globalny stan systemu)
+// Rozmiar: 32 bajty
+// ============================================================================
+
+/**
+ * Globalny stan systemu
+ */
+struct SystemState {
+    uint8_t  system_enabled;        // System aktywny (0/1)
+    uint8_t  system_halted;         // Błąd krytyczny - zatrzymanie (0/1)
+    uint8_t  active_channel;        // Aktualnie aktywny kanał (255 = żaden)
+    uint8_t  active_pump_state;     // PumpState aktywnej pompy
+    
+    uint32_t last_vps_log_day;      // UTC day ostatniego logu VPS
+    uint32_t boot_count;            // Licznik restartów
+    uint32_t uptime_seconds;        // Czas pracy (aktualizowany okresowo)
+    
+    uint8_t  pending_changes_mask;  // Bitmask kanałów z pending changes
+    uint8_t  _reserved[3];          // Padding
+    
+    uint32_t last_event_timestamp;  // Unix timestamp ostatniego eventu
+    uint32_t crc32;                 // CRC32
+    
+    uint8_t  _padding[4];           // Padding do 32 bajtów
+};
+
+static_assert(sizeof(SystemState) == 32, "SystemState must be 32 bytes");
+
+// ============================================================================
+// ERROR STATE (stan błędu krytycznego)
+// Rozmiar: 16 bajtów
+// ============================================================================
+
+/**
+ * Informacje o błędzie krytycznym
+ */
+struct ErrorState {
+    CriticalErrorType error_type;   // Typ błędu
+    uint8_t  affected_channel;      // Kanał, którego dotyczy błąd (255 = system)
+    uint8_t  error_count;           // Licznik błędów (od ostatniego resetu)
+    uint8_t  _reserved;             // Padding
+    
+    uint32_t error_timestamp;       // Unix timestamp błędu
+    uint32_t error_data;            // Dodatkowe dane (zależne od typu błędu)
+    uint32_t crc32;                 // CRC32
+};
+
+static_assert(sizeof(ErrorState) == 16, "ErrorState must be 16 bytes");
+
+// ============================================================================
+// RUNTIME DATA (tylko w RAM, nie zapisywane do FRAM)
+// ============================================================================
+
+/**
+ * Obliczone wartości kanału (dla GUI i logiki)
+ */
+struct ChannelCalculated {
+    float    single_dose_ml;        // Pojedyncza dawka (ml)
+    float    weekly_dose_ml;        // Tygodniowa suma (ml)
+    float    today_remaining_ml;    // Pozostało na dziś (ml)
+    uint32_t pump_duration_ms;      // Czas pracy pompy (ms)
+    
+    uint8_t  active_events_count;   // Liczba aktywnych eventów
+    uint8_t  active_days_count;     // Liczba aktywnych dni
+    uint8_t  completed_today_count; // Liczba wykonanych dziś
+    uint8_t  next_event_hour;       // Następny event (255 = brak)
+    
+    ChannelState state;             // Stan kanału
+    bool     is_valid;              // Czy konfiguracja poprawna
+    bool     is_active_today;       // Czy kanał aktywny dzisiaj
+    uint8_t  _padding;
+};
+
+/**
+ * Stan aktualnego dozowania (gdy pompa pracuje)
+ */
+struct DosingContext {
+    uint8_t  channel;               // Aktywny kanał
+    uint8_t  event_hour;            // Godzina eventu
+    PumpState pump_state;           // Stan pompy
+    uint8_t  _reserved;
+    
+    uint32_t start_time_ms;         // millis() startu
+    uint32_t target_duration_ms;    // Planowany czas pracy
+    float    target_volume_ml;      // Planowana objętość
+    
+    bool     gpio_validated;        // Czy GPIO zwalidowane
+    bool     completed;             // Czy zakończone
+    uint8_t  _padding[2];
+};
+
+// ============================================================================
+// VPS LOG ENTRY
+// ============================================================================
+
+/**
+ * Struktura logu dziennego dla VPS
+ */
+struct DailyLogEntry {
+    uint8_t  channel_id;
+    uint8_t  configured_events;     // Ile eventów było skonfigurowanych
+    uint8_t  completed_events;      // Ile wykonano
+    uint8_t  status;                // 0=OK, 1=PARTIAL, 2=ERROR
+    
+    float    configured_single_ml;  // Skonfigurowana dawka pojedyncza
+    float    actual_total_ml;       // Rzeczywista suma dzienna
+};
+
+// ============================================================================
+// UTILITY FUNCTIONS (deklaracje)
+// ============================================================================
+
+/**
+ * Oblicz CRC32 dla bloku danych
+ */
+uint32_t calculateCRC32(const void* data, size_t length);
+
+/**
+ * Waliduj strukturę przez CRC32
+ */
+bool validateCRC32(const void* data, size_t length, uint32_t expected_crc);
+
+/**
+ * Konwersja ChannelState na string
+ */
+const char* channelStateToString(ChannelState state);
+
+/**
+ * Konwersja CriticalErrorType na string
+ */
+const char* errorTypeToString(CriticalErrorType error);
+
+/**
+ * Pobierz aktualny dzień tygodnia (0=Pon, 6=Ndz) z UTC timestamp
+ */
+uint8_t getDayOfWeek(uint32_t unixTimestamp);
+
+/**
+ * Pobierz godzinę UTC z timestamp
+ */
+uint8_t getHourUTC(uint32_t unixTimestamp);
+
+/**
+ * Pobierz UTC day (dni od epoch)
+ */
+uint32_t getUTCDay(uint32_t unixTimestamp);
+
+#endif // DOSING_TYPES_H
