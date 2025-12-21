@@ -1,502 +1,350 @@
-// #include "rtc_controller.h"
-// #include "../core/logging.h"
-// #include "../hardware/hardware_pins.h"
-// #include <Wire.h>
-// #include <RTClib.h>
-// #include <WiFi.h>
-// #include <time.h>
-// #include "../network/wifi_manager.h"
 
 
-// // ===============================
-// // NTP & TIMEZONE CONFIGURATION
-// // ===============================
+/**
+ * DOZOWNIK - RTC Controller Implementation
+ */
 
-// // Multiple NTP servers for redundancy
-// const char* NTP_SERVER_1 = "216.239.35.0";    // time.google.com
-// const char* NTP_SERVER_2 = "216.239.35.4";    // time2.google.com  
-// const char* NTP_SERVER_3 = "162.159.200.1";   // time.cloudflare.com
+#include "rtc_controller.h"
 
-// const char* POLAND_TZ = "CET-1CEST,M3.5.0,M10.5.0/3";
+// Global instance
+RtcController rtcController;
 
+// DS3231 Register addresses
+#define DS3231_REG_SECONDS    0x00
+#define DS3231_REG_MINUTES    0x01
+#define DS3231_REG_HOURS      0x02
+#define DS3231_REG_DAY        0x03
+#define DS3231_REG_DATE       0x04
+#define DS3231_REG_MONTH      0x05
+#define DS3231_REG_YEAR       0x06
+#define DS3231_REG_CONTROL    0x0E
+#define DS3231_REG_STATUS     0x0F
+#define DS3231_REG_TEMP_MSB   0x11
+#define DS3231_REG_TEMP_LSB   0x12
 
-// // ===============================
-// // RTC STATE
-// // ===============================
-// RTC_DS3231 rtc;
-// bool rtcInitialized = false;
-// bool useInternalRTC = false;
-// bool rtcNeedsSync = false;
-// bool batteryIssueDetected = false;
-// bool timezoneConfigured = false;  // 🆕 Track if TZ is set
+// Days in month (non-leap year)
+static const uint8_t daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
-// // Internal RTC fallback structure
-// struct {
-//     int year = 2024;
-//     int month = 1;
-//     int day = 1;
-//     int hour = 12;
-//     int minute = 0;
-//     int second = 0;
-//     unsigned long lastUpdate = 0;
-// } internalTime;
+// ============================================================================
+// TIME INFO METHODS
+// ============================================================================
 
-// // NTP sync tracking
-// unsigned long lastNTPSync = 0;
-// const unsigned long NTP_SYNC_INTERVAL = 3600000;  // 1 hour
-
-// // ===============================
-// // TIMEZONE CONFIGURATION
-// // ===============================
-
-// void configureTimezone() {
-//     if (timezoneConfigured) {
-//         LOG_INFO("Timezone already configured, skipping");
-//         return;
-//     }
+uint32_t TimeInfo::toUnixTime() const {
+    uint32_t days = 0;
     
-//     LOG_INFO("Configuring timezone: Poland (CET/CEST with automatic DST)");
+    // Years since 1970
+    for (uint16_t y = 1970; y < year; y++) {
+        days += (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) ? 366 : 365;
+    }
     
-//     // ✅ Set timezone WITHOUT NTP sync first
-//     setenv("TZ", POLAND_TZ, 1);
-//     tzset();
+    // Months this year
+    for (uint8_t m = 1; m < month; m++) {
+        days += daysInMonth[m - 1];
+        if (m == 2 && (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0))) {
+            days++; // Leap year February
+        }
+    }
     
-//     timezoneConfigured = true;
-//     LOG_INFO("✅ Timezone configured successfully");
-// }
+    // Days this month
+    days += day - 1;
+    
+    return days * 86400UL + hour * 3600UL + minute * 60UL + second;
+}
 
-// // ===============================
-// // HELPER FUNCTIONS
-// // ===============================
+void TimeInfo::fromUnixTime(uint32_t timestamp) {
+    second = timestamp % 60;
+    timestamp /= 60;
+    minute = timestamp % 60;
+    timestamp /= 60;
+    hour = timestamp % 24;
+    timestamp /= 24;
+    
+    // timestamp is now days since 1970-01-01
+    uint32_t days = timestamp;
+    
+    // Calculate day of week (1970-01-01 was Thursday = 3)
+    dayOfWeek = (days + 3) % 7;
+    
+    // Find year
+    year = 1970;
+    while (true) {
+        uint16_t daysInYear = (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) ? 366 : 365;
+        if (days < daysInYear) break;
+        days -= daysInYear;
+        year++;
+    }
+    
+    // Find month
+    month = 1;
+    while (true) {
+        uint8_t dim = daysInMonth[month - 1];
+        if (month == 2 && (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0))) {
+            dim = 29;
+        }
+        if (days < dim) break;
+        days -= dim;
+        month++;
+    }
+    
+    day = days + 1;
+}
 
-// void initInternalTimeFromCompileTime() {
-//     char month_str[4];
-//     int day, year, hour, min, sec;
-//     sscanf(__DATE__, "%s %d %d", month_str, &day, &year);
-//     sscanf(__TIME__, "%d:%d:%d", &hour, &min, &sec);
-    
-//     const char* months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-//                            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-//     int month = 1;
-//     for (int i = 0; i < 12; i++) {
-//         if (strncmp(month_str, months[i], 3) == 0) {
-//             month = i + 1;
-//             break;
-//         }
-//     }
-    
-//     internalTime.year = year;
-//     internalTime.month = month;
-//     internalTime.day = day;
-//     internalTime.hour = hour;
-//     internalTime.minute = min;
-//     internalTime.second = sec;
-//     internalTime.lastUpdate = millis();
-    
-//     LOG_INFO("Internal RTC set to compile time: %04d-%02d-%02d %02d:%02d:%02d",
-//              year, month, day, hour, min, sec);
-// }
+void TimeInfo::toString(char* buffer, size_t size) const {
+    snprintf(buffer, size, "%04d-%02d-%02d %02d:%02d:%02d",
+             year, month, day, hour, minute, second);
+}
 
-// // ===============================
-// // NTP SYNCHRONIZATION
-// // ===============================
+void TimeInfo::toTimeString(char* buffer, size_t size) const {
+    snprintf(buffer, size, "%02d:%02d", hour, minute);
+}
 
-// bool syncTimeFromNTP() {
-//     if (!isWiFiConnected()) {
-//         LOG_WARNING("Cannot sync NTP - WiFi not connected");
-//         return false;
-//     }
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
+bool RtcController::begin() {
+    Serial.println(F("[RTC] Initializing..."));
     
-//     // ✅ Ensure timezone is configured BEFORE NTP sync
-//     configureTimezone();
+    // Check if RTC is present
+    Wire.beginTransmission(RTC_I2C_ADDRESS);
+    if (Wire.endTransmission() != 0) {
+        Serial.println(F("[RTC] ERROR: DS3231 not found!"));
+        _initialized = false;
+        _timeValid = false;
+        return false;
+    }
     
-//     LOG_INFO("Attempting NTP synchronization...");
-//     LOG_INFO("NTP servers: %s, %s, %s", NTP_SERVER_1, NTP_SERVER_2, NTP_SERVER_3);
-    
-//     // ✅ Use configTzTime with multiple servers
-//     configTzTime(POLAND_TZ, NTP_SERVER_1, NTP_SERVER_2, NTP_SERVER_3);
-    
-//     // ✅ Increased timeout - wait up to 20 seconds
-//     int attempts = 0;
-//     time_t now = 0;
-//     struct tm timeinfo;
-    
-//     while (attempts < 40) {  // 40 * 500ms = 20 seconds
-//         time(&now);
-//         if (now > 1600000000) {  // Sprawdź czy timestamp jest sensowny (after 2020)
-//             localtime_r(&now, &timeinfo);  // ✅ Automatyczna konwersja na lokalny czas
-            
-//             char timeStr[64];
-//             strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S %Z", &timeinfo);
-//             LOG_INFO("✅ NTP sync successful: %s", timeStr);
-//             LOG_INFO("UTC timestamp: %lu", (unsigned long)now);
-            
-//             lastNTPSync = millis();
-//             return true;
-//         }
-//         delay(500);
-//         attempts++;
+    // Check oscillator stop flag
+    uint8_t status = _readRegister(DS3231_REG_STATUS);
+    if (status & 0x80) {
+        Serial.println(F("[RTC] WARNING: Oscillator was stopped, time invalid"));
+        _timeValid = false;
         
-//         // Log progress every 5 seconds
-//         if (attempts % 10 == 0) {
-//             LOG_INFO("NTP sync in progress... (%d/40)", attempts);
-//         }
-//     }
+        // Clear OSF flag
+        _writeRegister(DS3231_REG_STATUS, status & ~0x80);
+    } else {
+        _timeValid = true;
+    }
     
-//     LOG_ERROR("❌ NTP synchronization failed after 20 seconds");
-//     LOG_WARNING("Possible causes: Firewall blocking port 123 (UDP), DNS issues, or slow connection");
-//     return false;
-// }
+    // Read current time for midnight detection
+    TimeInfo now = getTime();
+    _lastDay = now.day;
+    
+    _initialized = true;
+    
+    char timeStr[32];
+    now.toString(timeStr, sizeof(timeStr));
+    Serial.printf("[RTC] Time: %s UTC (valid: %s)\n", 
+                  timeStr, _timeValid ? "YES" : "NO");
+    
+    return true;
+}
 
-// bool setRTCFromNTP() {
-//     if (!syncTimeFromNTP()) {
-//         return false;
-//     }
-    
-//     // ✅ Pobierz UTC timestamp z systemu (NTP już zsynchronizowany)
-//     time_t ntp_time;
-//     time(&ntp_time);
-    
-//     LOG_INFO("NTP returned UTC timestamp: %lu", (unsigned long)ntp_time);
-    
-//     // ✅ Zapisz UTC BEZPOŚREDNIO do RTC (bez żadnych offsetów)
-//     rtc.adjust(DateTime(ntp_time));
-    
-//     // Weryfikacja z konwersją na lokalny czas dla loga
-//     DateTime rtc_utc = rtc.now();
-//     time_t rtc_timestamp = rtc_utc.unixtime();
-//     struct tm local_time;
-//     localtime_r(&rtc_timestamp, &local_time);
-    
-//     char localStr[64];
-//     strftime(localStr, sizeof(localStr), "%Y-%m-%d %H:%M:%S %Z", &local_time);
-    
-//     LOG_INFO("✅ RTC updated with UTC: %04d-%02d-%02d %02d:%02d:%02d",
-//              rtc_utc.year(), rtc_utc.month(), rtc_utc.day(),
-//              rtc_utc.hour(), rtc_utc.minute(), rtc_utc.second());
-//     LOG_INFO("Local time equivalent: %s", localStr);
-    
-//     return true;
-// }
+// ============================================================================
+// READ TIME
+// ============================================================================
 
-// // ===============================
-// // RTC INITIALIZATION
-// // ===============================
+TimeInfo RtcController::getTime() {
+    TimeInfo t;
+    
+    if (!_initialized) {
+        memset(&t, 0, sizeof(t));
+        return t;
+    }
+    
+    Wire.beginTransmission(RTC_I2C_ADDRESS);
+    Wire.write(DS3231_REG_SECONDS);
+    Wire.endTransmission();
+    
+    Wire.requestFrom((uint8_t)RTC_I2C_ADDRESS, (uint8_t)7);
+    
+    t.second = _bcd2dec(Wire.read() & 0x7F);
+    t.minute = _bcd2dec(Wire.read());
+    t.hour = _bcd2dec(Wire.read() & 0x3F);  // 24h format
+    Wire.read();  // Skip day of week from RTC (we calculate it)
+    t.day = _bcd2dec(Wire.read());
+    t.month = _bcd2dec(Wire.read() & 0x1F);
+    t.year = 2000 + _bcd2dec(Wire.read());
+    
+    // Calculate day of week (0=Mon, 6=Sun)
+    t.dayOfWeek = _calcDayOfWeek(t.year, t.month, t.day);
+    
+    return t;
+}
 
-// void initializeRTC() {
-//     LOG_INFO("Starting RTC initialization...");
-    
-//     // ✅ KLUCZOWE: Ustaw strefę czasową NA POCZĄTKU, niezależnie od NTP
-//     configureTimezone();
-    
-//     // Reset flags
-//     rtcNeedsSync = false;
-//     batteryIssueDetected = false;
-    
-//     LOG_INFO("Attempting to initialize external DS3231 RTC...");
-    
-//     Wire.begin(RTC_SDA_PIN, RTC_SCL_PIN);
-//     Wire.setClock(100000);
-    
-//     Wire.beginTransmission(0x68);
-//     byte error = Wire.endTransmission();
-    
-//     if (error == 0) {
-//         LOG_INFO("DS3231 detected on I2C bus");
-        
-//         if (rtc.begin()) {
-//             // Sprawdź czy RTC stracił zasilanie (bateria wyczerpana)
-//             if (rtc.lostPower()) {
-//                 LOG_WARNING("⚠️ RTC lost power - battery dead or removed");
-//                 LOG_INFO("Setting RTC to compile time to clear OSF flag...");
-                
-//                 batteryIssueDetected = true;
-//                 rtcNeedsSync = true;
-                
-//                 // Ustaw na compile time aby wyczyścić flagę OSF
-//                 DateTime compileTime = DateTime(F(__DATE__), F(__TIME__));
-//                 rtc.adjust(compileTime);
-//                 delay(100);
-                
-//                 if (rtc.lostPower()) {
-//                     LOG_ERROR("Failed to clear RTC OSF flag - hardware problem");
-//                     useInternalRTC = true;
-//                     rtcInitialized = true;
-//                     initInternalTimeFromCompileTime();
-//                     return;
-//                 }
-                
-//                 LOG_INFO("OSF flag cleared");
-//                 LOG_WARNING("⚠️ Battery issue detected - replace CR2032 battery");
-                
-//                 // Próba synchronizacji z NTP
-//                 LOG_INFO("Attempting immediate NTP sync after battery loss...");
-                
-//                 if (setRTCFromNTP()) {
-//                     LOG_INFO("✅ RTC synchronized with NTP after battery replacement");
-//                     // LOG_INFO("Battery warning cleared");
-//                     // batteryIssueDetected = false;  // Clear flag after successful NTP sync
-//                     rtcNeedsSync = false;
-//                     rtcInitialized = true;
-//                     useInternalRTC = false;
-//                     return;
-//                 } else {
-//                     LOG_WARNING("⚠️ NTP sync failed - RTC will use compile time until next sync");
-//                     LOG_INFO("System will retry NTP sync every hour");
-//                 }
-//             }
-            
-//             // Weryfikacja czasu RTC
-//             DateTime now = rtc.now();
-//             DateTime compileTime = DateTime(F(__DATE__), F(__TIME__));
-            
-//             LOG_INFO("RTC current time (UTC): %04d-%02d-%02d %02d:%02d:%02d", 
-//                      now.year(), now.month(), now.day(),
-//                      now.hour(), now.minute(), now.second());
-            
-//             // Walidacja komponentów czasu
-//             bool timeValid = true;
-//             if (now.year() < 2020 || now.year() > 2035) {
-//                 LOG_ERROR("RTC year invalid: %d", now.year());
-//                 timeValid = false;
-//             }
-//             if (now.month() < 1 || now.month() > 12) {
-//                 LOG_ERROR("RTC month invalid: %d", now.month());
-//                 timeValid = false;
-//             }
-//             if (now.day() < 1 || now.day() > 31) {
-//                 LOG_ERROR("RTC day invalid: %d", now.day());
-//                 timeValid = false;
-//             }
-            
-//             if (!timeValid) {
-//                 LOG_ERROR("RTC has invalid time components");
-//                 rtcNeedsSync = true;
-                
-//                 if (setRTCFromNTP()) {
-//                     LOG_INFO("✅ RTC restored from NTP");
-//                     rtcNeedsSync = false;
-//                     batteryIssueDetected = false;
-//                     rtcInitialized = true;
-//                     useInternalRTC = false;
-//                     return;
-//                 } else {
-//                     LOG_WARNING("NTP sync failed, switching to fallback");
-//                     useInternalRTC = true;
-//                     rtcInitialized = true;
-//                     initInternalTimeFromCompileTime();
-//                     return;
-//                 }
-//             }
-            
-//             // RTC OK
-//             LOG_INFO("✅ RTC time verification successful");
-//             rtcInitialized = true;
-//             useInternalRTC = false;
-            
-//             if (!batteryIssueDetected && !rtcNeedsSync) {
-//                 LOG_INFO("RTC appears accurate and battery OK");
-//             } else if (rtcNeedsSync) {
-//                 LOG_INFO("RTC operational but will sync with NTP when available");
-//             }
-            
-//             return;
-            
-//         } else {
-//             LOG_ERROR("Failed to initialize DS3231 RTC");
-//         }
-        
-//     } else {
-//         LOG_WARNING("DS3231 not found on I2C bus (error: %d)", error);
-//     }
-    
-//     // Fallback do wewnętrznego RTC ESP32
-//     LOG_INFO("Falling back to ESP32 system time");
-//     useInternalRTC = true;
-//     rtcInitialized = true;
-//     rtcNeedsSync = true;
-    
-//     struct tm timeinfo;
-//     if (!getLocalTime(&timeinfo, 100)) {
-//         LOG_WARNING("Failed to get system time, using compile time");
-//         initInternalTimeFromCompileTime();
-//     } else {
-//         internalTime.year = timeinfo.tm_year + 1900;
-//         internalTime.month = timeinfo.tm_mon + 1;
-//         internalTime.day = timeinfo.tm_mday;
-//         internalTime.hour = timeinfo.tm_hour;
-//         internalTime.minute = timeinfo.tm_min;
-//         internalTime.second = timeinfo.tm_sec;
-//         internalTime.lastUpdate = millis();
-        
-//         LOG_INFO("Internal RTC set from system time");
-//     }
-// }
+uint32_t RtcController::getUnixTime() {
+    return getTime().toUnixTime();
+}
 
-// // ===============================
-// // PUBLIC API
-// // ===============================
+uint8_t RtcController::getHour() {
+    if (!_initialized) return 0;
+    return _bcd2dec(_readRegister(DS3231_REG_HOURS) & 0x3F);
+}
 
-// String getCurrentTimestamp() {
-//     static String lastValidTimestamp = "";
-//     static uint32_t lastValidTime = 0;
-    
-//     if (!rtcInitialized) {
-//         static uint32_t lastWarning = 0;
-//         if (millis() - lastWarning > 30000) {
-//             LOG_ERROR("RTC not initialized in getCurrentTimestamp()");
-//             lastWarning = millis();
-//         }
-//         return lastValidTimestamp.length() > 0 ? lastValidTimestamp : "RTC_NOT_INITIALIZED";
-//     }
-    
-//     const int MAX_RETRIES = 3;
-//     DateTime now;
-//     bool validRead = false;
-    
-//     for (int retry = 0; retry < MAX_RETRIES; retry++) {
-//         now = rtc.now();
-        
-//         if (now.year() >= 2024 && now.year() <= 2030) {
-//             validRead = true;
-//             break;
-//         }
-        
-//         if (retry == 0) {
-//             LOG_WARNING("RTC read invalid (attempt %d/%d): %04d-%02d-%02d", 
-//                        retry + 1, MAX_RETRIES,
-//                        now.year(), now.month(), now.day());
-//         }
-        
-//         delay(10);
-//     }
-    
-//     if (!validRead) {
-//         static uint32_t lastError = 0;
-//         if (millis() - lastError > 10000) {
-//             LOG_ERROR("RTC read failed after %d retries", MAX_RETRIES);
-//             lastError = millis();
-//         }
-        
-//         if (lastValidTimestamp.length() > 0 && 
-//             (millis() - lastValidTime) < 10000) {
-//             LOG_WARNING("Using cached timestamp (age: %dms)", millis() - lastValidTime);
-//             return lastValidTimestamp;
-//         }
-        
-//         return "RTC_ERROR";
-//     }
-    
-//     // Convert UTC → Local
-//     time_t utc = now.unixtime();
-//     struct tm timeinfo;
-//     localtime_r(&utc, &timeinfo);
-    
-//     char buffer[32];
-//     strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
-    
-//     lastValidTimestamp = String(buffer);
-//     lastValidTime = millis();
-    
-//     return String(buffer);
-// }
+uint8_t RtcController::getMinute() {
+    if (!_initialized) return 0;
+    return _bcd2dec(_readRegister(DS3231_REG_MINUTES));
+}
 
-// unsigned long getUnixTimestamp() {
-//     if (!rtcInitialized) {
-//         return 1609459200;  // 2021-01-01 00:00:00 UTC
-//     }
+uint8_t RtcController::getDayOfWeek() {
+    TimeInfo t = getTime();
+    return t.dayOfWeek;
+}
+
+uint32_t RtcController::getUTCDay() {
+    return getUnixTime() / 86400UL;
+}
+
+// ============================================================================
+// SET TIME
+// ============================================================================
+
+bool RtcController::setTime(const TimeInfo& time) {
+    if (!_initialized) return false;
     
-//     if (useInternalRTC) {
-//         struct tm tm_time;
-//         tm_time.tm_year = internalTime.year - 1900;
-//         tm_time.tm_mon = internalTime.month - 1;
-//         tm_time.tm_mday = internalTime.day;
-//         tm_time.tm_hour = internalTime.hour;
-//         tm_time.tm_min = internalTime.minute;
-//         tm_time.tm_sec = internalTime.second;
-//         tm_time.tm_isdst = 0;
-        
-//         return mktime(&tm_time);
-//     } else {
-//         // ✅ RETRY MECHANISM - jak w getCurrentTimestamp()
-//         const int MAX_RETRIES = 3;
-//         DateTime now;
-//         bool validRead = false;
-        
-//         for (int retry = 0; retry < MAX_RETRIES; retry++) {
-//             now = rtc.now();
-            
-//             // ✅ Walidacja roku
-//             if (now.year() >= 2024 && now.year() <= 2035) {
-//                 validRead = true;
-//                 break;
-//             }
-            
-//             if (retry < MAX_RETRIES - 1) {
-//                 delay(10);
-//             }
-//         }
-        
-//         if (!validRead) {
-//             static uint32_t lastError = 0;
-//             if (millis() - lastError > 10000) {
-//                 LOG_ERROR("RTC read failed in getUnixTimestamp(), year: %d", now.year());
-//                 lastError = millis();
-//             }
-//             // ✅ Fallback: zwróć sensowną wartość zamiast śmieci
-//             return 1735689600;  // 2025-01-01 00:00:00 UTC
-//         }
-        
-//         return now.unixtime();
-//     }
-// }
-
-// bool isRTCWorking() {
-//     if (!rtcInitialized) {
-//         return false;
-//     }
+    Wire.beginTransmission(RTC_I2C_ADDRESS);
+    Wire.write(DS3231_REG_SECONDS);
+    Wire.write(_dec2bcd(time.second));
+    Wire.write(_dec2bcd(time.minute));
+    Wire.write(_dec2bcd(time.hour));
+    Wire.write(_dec2bcd(time.dayOfWeek + 1));  // DS3231 uses 1-7
+    Wire.write(_dec2bcd(time.day));
+    Wire.write(_dec2bcd(time.month));
+    Wire.write(_dec2bcd(time.year - 2000));
     
-//     if (useInternalRTC) {
-//         return true;  // Internal RTC zawsze "działa"
-//     } else {
-//         DateTime now = rtc.now();
-//         return (now.year() >= 2020 && now.year() <= 2035);
-//     }
-// }
-
-// String getRTCInfo() {
-
-//     if (!rtcInitialized) {
-//         return "RTC not initialized";
-//     }
+    if (Wire.endTransmission() != 0) {
+        return false;
+    }
     
-//     if (useInternalRTC) {
-//         if (rtcNeedsSync) {
-//             return "ESP32 system time (needs NTP sync)";
-//         }
-//         return "ESP32 system time (fallback)";
-//     } else {
-//         if (batteryIssueDetected) {
-//             return "DS3231 RTC (⚠️ BATTERY DEAD - replace CR2032!)";
-//         } else if (rtcNeedsSync) {
-//             return "DS3231 RTC (syncing with NTP...)";
-//         }
-//         return "DS3231 RTC (synchronized)";
-//     }
-// }
+    _timeValid = true;
+    _lastDay = time.day;
+    
+    char timeStr[32];
+    time.toString(timeStr, sizeof(timeStr));
+    Serial.printf("[RTC] Time set to: %s\n", timeStr);
+    
+    return true;
+}
 
-// String getTimeSourceInfo() {
-//     return getRTCInfo();
-// }
+bool RtcController::setUnixTime(uint32_t timestamp) {
+    TimeInfo t;
+    t.fromUnixTime(timestamp);
+    return setTime(t);
+}
 
-// bool isRTCHardware() {
-//     return rtcInitialized && !useInternalRTC;
-// }
+bool RtcController::syncNTP(const char* ntpServer, long gmtOffset) {
+    Serial.printf("[RTC] NTP sync from %s...\n", ntpServer);
+    
+    // Configure NTP
+    configTime(gmtOffset, 0, ntpServer);
+    
+    // Wait for time (max 10 seconds)
+    uint32_t start = millis();
+    struct tm timeinfo;
+    
+    while (!getLocalTime(&timeinfo)) {
+        if (millis() - start > 10000) {
+            Serial.println(F("[RTC] NTP sync timeout!"));
+            return false;
+        }
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println();
+    
+    // Convert to TimeInfo
+    TimeInfo t;
+    t.year = timeinfo.tm_year + 1900;
+    t.month = timeinfo.tm_mon + 1;
+    t.day = timeinfo.tm_mday;
+    t.hour = timeinfo.tm_hour;
+    t.minute = timeinfo.tm_min;
+    t.second = timeinfo.tm_sec;
+    t.dayOfWeek = (timeinfo.tm_wday + 6) % 7;  // Convert Sun=0 to Mon=0
+    
+    return setTime(t);
+}
 
-// bool rtcNeedsSynchronization() {
-//     return batteryIssueDetected || rtcNeedsSync;
-// }
+// ============================================================================
+// UTILITY
+// ============================================================================
 
-// bool isBatteryIssueDetected() {
-//     return batteryIssueDetected;
-// }
+float RtcController::getTemperature() {
+    if (!_initialized) return 0.0f;
+    
+    int8_t msb = (int8_t)_readRegister(DS3231_REG_TEMP_MSB);
+    uint8_t lsb = _readRegister(DS3231_REG_TEMP_LSB);
+    
+    return (float)msb + ((lsb >> 6) * 0.25f);
+}
+
+bool RtcController::hasMidnightPassed() {
+    if (!_initialized || !_timeValid) return false;
+    
+    TimeInfo now = getTime();
+    
+    if (now.day != _lastDay) {
+        _lastDay = now.day;
+        return true;
+    }
+    
+    return false;
+}
+
+void RtcController::printTime() {
+    TimeInfo t = getTime();
+    
+    const char* dayNames[] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+    
+    char timeStr[32];
+    t.toString(timeStr, sizeof(timeStr));
+    
+    Serial.printf("[RTC] %s %s UTC\n", dayNames[t.dayOfWeek], timeStr);
+    Serial.printf("[RTC] Unix: %lu, UTCDay: %lu\n", t.toUnixTime(), getUTCDay());
+    Serial.printf("[RTC] Temperature: %.2f C\n", getTemperature());
+    Serial.printf("[RTC] Time valid: %s\n", _timeValid ? "YES" : "NO");
+}
+
+// ============================================================================
+// PRIVATE METHODS
+// ============================================================================
+
+uint8_t RtcController::_readRegister(uint8_t reg) {
+    Wire.beginTransmission(RTC_I2C_ADDRESS);
+    Wire.write(reg);
+    Wire.endTransmission();
+    
+    Wire.requestFrom((uint8_t)RTC_I2C_ADDRESS, (uint8_t)1);
+    return Wire.read();
+}
+
+void RtcController::_writeRegister(uint8_t reg, uint8_t value) {
+    Wire.beginTransmission(RTC_I2C_ADDRESS);
+    Wire.write(reg);
+    Wire.write(value);
+    Wire.endTransmission();
+}
+
+uint8_t RtcController::_bcd2dec(uint8_t bcd) {
+    return (bcd >> 4) * 10 + (bcd & 0x0F);
+}
+
+uint8_t RtcController::_dec2bcd(uint8_t dec) {
+    return ((dec / 10) << 4) | (dec % 10);
+}
+
+uint8_t RtcController::_calcDayOfWeek(uint16_t year, uint8_t month, uint8_t day) {
+    // Zeller's congruence (modified for Monday=0)
+    if (month < 3) {
+        month += 12;
+        year--;
+    }
+    
+    int k = year % 100;
+    int j = year / 100;
+    
+    int h = (day + (13 * (month + 1)) / 5 + k + k / 4 + j / 4 - 2 * j) % 7;
+    
+    // Convert from Zeller (Sat=0) to ISO (Mon=0)
+    return (h + 5) % 7;
+}
