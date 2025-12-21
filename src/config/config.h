@@ -178,4 +178,7 @@ inline uint8_t popcount32(uint32_t n) {
     return count;
 }
 
+#define ENABLE_SERIAL_DEBUG     true
+#define ENABLE_FULL_LOGGING     true
+
 #endif // CONFIG_H

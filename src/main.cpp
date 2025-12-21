@@ -17,6 +17,9 @@
 #include "rtc_controller.h"
 #include "dosing_scheduler.h"
 
+#include "web_server.h"
+#include <WiFi.h>
+
 // ============================================================================
 // GLOBAL STATE
 // ============================================================================
@@ -42,8 +45,12 @@ void testScheduler();
 // SETUP
 // ============================================================================
 void setup() {
+
+    #include "../core/logging.h"
     // Initialize Serial
     Serial.begin(SERIAL_BAUD_RATE);
+
+    initLogging();
     
     // Wait for Serial (USB CDC)
     uint32_t startWait = millis();
@@ -68,6 +75,24 @@ void setup() {
     gpioValidator.begin();
 
     // tests%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    // Initialize WiFi (tymczasowo hardcoded do testów)
+    Serial.println(F("[INIT] Connecting WiFi..."));
+    WiFi.begin("KiG_2.4_IOT", "*qY4I@5&*%0lK1Q$U6UV7^S");  // TODO: credentials_manager
+    
+    uint8_t wifiAttempts = 0;
+    while (WiFi.status() != WL_CONNECTED && wifiAttempts < 30) {
+        delay(500);
+        Serial.print(".");
+        wifiAttempts++;
+    }
+    
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.printf("\n[INIT] WiFi connected: %s\n", WiFi.localIP().toString().c_str());
+        initWebServer();
+    } else {
+        Serial.println(F("\n[INIT] WiFi FAILED - web server disabled"));
+    }
     
     
     // Initialize FRAM Controller
