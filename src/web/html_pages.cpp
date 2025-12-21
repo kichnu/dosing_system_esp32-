@@ -601,11 +601,7 @@ body::before {
     overflow: hidden;
 }
 
-.horizontal-slider {
-    display: flex;
-    height: 100%;
-    transition: transform var(--transition-slow);
-}
+
 
 /* Channel Dots */
 .channel-dots {
@@ -1200,6 +1196,12 @@ body::before {
         padding: 12px;
         overflow-y: auto;
         height: 100%;
+    }
+
+    .horizontal-slider {
+        display: flex;
+        height: 100%;
+        transition: transform var(--transition-slow);
     }
 
     .channel-card {

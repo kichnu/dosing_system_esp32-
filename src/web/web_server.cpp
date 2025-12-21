@@ -175,6 +175,293 @@ void handleApiDosingStatus(AsyncWebServerRequest* request) {
     request->send(200, "application/json", response);
 }
 
+// ============================================================================
+// API: DOSING CONFIG (POST) - Save channel configuration
+// ============================================================================
+
+void handleApiDosingConfig(AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
+    // Accumulate body data
+    static String bodyBuffer;
+    
+    if (index == 0) {
+        bodyBuffer = "";
+    }
+    
+    bodyBuffer += String((char*)data).substring(0, len);
+    
+    // Wait for complete body
+    if (index + len < total) {
+        return;
+    }
+    
+    // Auth check
+    if (!isAuthenticated(request)) {
+        request->send(401, "application/json", "{\"success\":false,\"error\":\"Unauthorized\"}");
+        bodyBuffer = "";
+        return;
+    }
+    
+    // Parse JSON
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, bodyBuffer);
+    bodyBuffer = "";
+    
+    if (err) {
+        Serial.printf("[WEB] JSON parse error: %s\n", err.c_str());
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
+        return;
+    }
+    
+    // Validate channel
+    if (!doc.containsKey("channel")) {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Missing channel\"}");
+        return;
+    }
+    
+    uint8_t channel = doc["channel"].as<uint8_t>();
+    
+    if (channel >= CHANNEL_COUNT) {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid channel\"}");
+        return;
+    }
+    
+    Serial.printf("[WEB] Config update CH%d\n", channel);
+    
+    // Apply configuration to PENDING
+    bool success = true;
+    
+    if (doc.containsKey("events")) {
+        uint32_t events = doc["events"].as<uint32_t>();
+        success &= channelManager.setEventsBitmask(channel, events);
+        Serial.printf("  Events: 0x%06X\n", events);
+    }
+    
+    if (doc.containsKey("days")) {
+        uint8_t days = doc["days"].as<uint8_t>();
+        success &= channelManager.setDaysBitmask(channel, days);
+        Serial.printf("  Days: 0x%02X\n", days);
+    }
+    
+    if (doc.containsKey("dailyDose")) {
+        float dose = doc["dailyDose"].as<float>();
+        success &= channelManager.setDailyDose(channel, dose);
+        Serial.printf("  Dose: %.2f ml\n", dose);
+    }
+    
+    if (doc.containsKey("dosingRate")) {
+        float rate = doc["dosingRate"].as<float>();
+        success &= channelManager.setDosingRate(channel, rate);
+        Serial.printf("  Rate: %.3f ml/s\n", rate);
+    }
+    
+    // Validate config
+    ValidationError valErr;
+    bool valid = channelManager.validateConfig(channel, &valErr);
+    
+    if (!valid) {
+        Serial.printf("[WEB] Validation: %s\n", valErr.message);
+    }
+    
+    // Build response
+    JsonDocument resp;
+    resp["success"] = success;
+    resp["valid"] = valid;
+    resp["hasPending"] = channelManager.hasPendingChanges(channel);
+    
+    if (!valid && valErr.has_error) {
+        resp["validationError"] = valErr.message;
+    }
+    
+    String response;
+    serializeJson(resp, response);
+    request->send(200, "application/json", response);
+    
+    Serial.printf("[WEB] Config saved: success=%d valid=%d pending=%d\n", 
+                  success, valid, channelManager.hasPendingChanges(channel));
+}
+
+// ============================================================================
+// API: CALIBRATE (POST) - Run pump for calibration
+// ============================================================================
+
+void handleApiCalibrate(AsyncWebServerRequest* request) {
+    if (!isAuthenticated(request)) {
+        request->send(401, "application/json", "{\"success\":false,\"error\":\"Unauthorized\"}");
+        return;
+    }
+    
+    // Get channel from query param: /api/calibrate?channel=0
+    if (!request->hasParam("channel")) {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Missing channel\"}");
+        return;
+    }
+    
+    uint8_t channel = request->getParam("channel")->value().toInt();
+    
+    if (channel >= CHANNEL_COUNT) {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid channel\"}");
+        return;
+    }
+    
+    Serial.printf("[WEB] Calibration request CH%d\n", channel);
+    
+    // Check if any pump already running
+    if (relayController.isAnyOn()) {
+        request->send(409, "application/json", "{\"success\":false,\"error\":\"Pump busy\"}");
+        return;
+    }
+    
+    // Run pump for 30 seconds
+    const uint32_t CALIB_DURATION_MS = 30000;
+    
+    RelayResult res = relayController.turnOn(channel, CALIB_DURATION_MS);
+    
+    if (res != RelayResult::OK) {
+        String errJson = "{\"success\":false,\"error\":\"";
+        errJson += RelayController::resultToString(res);
+        errJson += "\"}";
+        request->send(500, "application/json", errJson);
+        return;
+    }
+    
+    Serial.printf("[WEB] Calibration started CH%d for %lu ms\n", channel, CALIB_DURATION_MS);
+    
+    // Success response
+    JsonDocument resp;
+    resp["success"] = true;
+    resp["channel"] = channel;
+    resp["durationMs"] = CALIB_DURATION_MS;
+    
+    String response;
+    serializeJson(resp, response);
+    request->send(200, "application/json", response);
+}
+
+// ============================================================================
+// API: SCHEDULER (POST) - Enable/disable scheduler
+// ============================================================================
+
+void handleApiScheduler(AsyncWebServerRequest* request) {
+    if (!isAuthenticated(request)) {
+        request->send(401, "application/json", "{\"success\":false,\"error\":\"Unauthorized\"}");
+        return;
+    }
+    
+    // Check for 'enabled' param
+    if (!request->hasParam("enabled", true)) {
+        // No param = GET current state
+        JsonDocument resp;
+        resp["enabled"] = dosingScheduler.isEnabled();
+        resp["state"] = DosingScheduler::stateToString(dosingScheduler.getState());
+        
+        String response;
+        serializeJson(resp, response);
+        request->send(200, "application/json", response);
+        return;
+    }
+    
+    // Set enabled state
+    String val = request->getParam("enabled", true)->value();
+    bool enabled = (val == "true" || val == "1");
+    
+    dosingScheduler.setEnabled(enabled);
+    
+    Serial.printf("[WEB] Scheduler %s\n", enabled ? "ENABLED" : "DISABLED");
+    
+    JsonDocument resp;
+    resp["success"] = true;
+    resp["enabled"] = dosingScheduler.isEnabled();
+    resp["state"] = DosingScheduler::stateToString(dosingScheduler.getState());
+    
+    String response;
+    serializeJson(resp, response);
+    request->send(200, "application/json", response);
+}
+
+// ============================================================================
+// API: MANUAL DOSE (POST) - Trigger manual dosing
+// ============================================================================
+
+void handleApiManualDose(AsyncWebServerRequest* request) {
+    if (!isAuthenticated(request)) {
+        request->send(401, "application/json", "{\"success\":false,\"error\":\"Unauthorized\"}");
+        return;
+    }
+    
+    // Get channel
+    if (!request->hasParam("channel", true)) {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Missing channel\"}");
+        return;
+    }
+    
+    uint8_t channel = request->getParam("channel", true)->value().toInt();
+    
+    if (channel >= CHANNEL_COUNT) {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid channel\"}");
+        return;
+    }
+    
+    Serial.printf("[WEB] Manual dose request CH%d\n", channel);
+    
+    // Check scheduler
+    if (!dosingScheduler.isEnabled()) {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Scheduler disabled\"}");
+        return;
+    }
+    
+    // Check if pump busy
+    if (relayController.isAnyOn()) {
+        request->send(409, "application/json", "{\"success\":false,\"error\":\"Pump busy\"}");
+        return;
+    }
+    
+    // Trigger dose
+    if (!dosingScheduler.triggerManualDose(channel)) {
+        request->send(500, "application/json", "{\"success\":false,\"error\":\"Failed to start\"}");
+        return;
+    }
+    
+    const ChannelCalculated& calc = channelManager.getCalculated(channel);
+    
+    JsonDocument resp;
+    resp["success"] = true;
+    resp["channel"] = channel;
+    resp["doseMl"] = calc.single_dose_ml;
+    resp["durationMs"] = calc.pump_duration_ms;
+    
+    String response;
+    serializeJson(resp, response);
+    request->send(200, "application/json", response);
+    
+    Serial.printf("[WEB] Manual dose started CH%d: %.2f ml\n", channel, calc.single_dose_ml);
+}
+
+// ============================================================================
+// API: DAILY RESET (POST) - Force daily reset
+// ============================================================================
+
+void handleApiDailyReset(AsyncWebServerRequest* request) {
+    if (!isAuthenticated(request)) {
+        request->send(401, "application/json", "{\"success\":false,\"error\":\"Unauthorized\"}");
+        return;
+    }
+    
+    Serial.println(F("[WEB] Forcing daily reset..."));
+    
+    bool success = dosingScheduler.forceDailyReset();
+    
+    JsonDocument resp;
+    resp["success"] = success;
+    resp["message"] = success ? "Daily reset complete" : "Reset failed";
+    resp["pendingApplied"] = !channelManager.hasAnyPendingChanges();
+    
+    String response;
+    serializeJson(resp, response);
+    request->send(200, "application/json", response);
+    
+    Serial.printf("[WEB] Daily reset: %s\n", success ? "OK" : "FAILED");
+}
+
 void handleNotFound(AsyncWebServerRequest* request) {
     request->send(404, "text/plain", "Not Found");
 }
@@ -198,6 +485,11 @@ void initWebServer() {
     server.on("/api/login", HTTP_POST, handleApiLogin);
     server.on("/api/logout", HTTP_POST, handleApiLogout);
     server.on("/api/dosing-status", HTTP_GET, handleApiDosingStatus); 
+    server.on("/api/dosing-config", HTTP_POST, [](AsyncWebServerRequest* request){}, NULL, handleApiDosingConfig);
+    server.on("/api/calibrate", HTTP_POST, handleApiCalibrate);
+    server.on("/api/scheduler", HTTP_POST, handleApiScheduler);
+    server.on("/api/manual-dose", HTTP_POST, handleApiManualDose);
+    server.on("/api/daily-reset", HTTP_POST, handleApiDailyReset);
     
     // === 404 HANDLER ===
     server.onNotFound(handleNotFound);
