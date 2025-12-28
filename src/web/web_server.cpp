@@ -128,11 +128,14 @@ void handleApiDosingStatus(AsyncWebServerRequest* request) {
     // Channels array
     JsonArray channels = doc["channels"].to<JsonArray>();
     
-    for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
-        const ChannelConfig& cfg = channelManager.getActiveConfig(i);
+for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
+        const ChannelConfig& active = channelManager.getActiveConfig(i);
         const ChannelConfig& pending = channelManager.getPendingConfig(i);
         const ChannelDailyState& daily = channelManager.getDailyState(i);
         const ChannelCalculated& calc = channelManager.getCalculated(i);
+        
+        // Use pending config if has changes, otherwise active
+        const ChannelConfig& cfg = pending.has_pending ? pending : active;
         
         JsonObject ch = channels.add<JsonObject>();
         

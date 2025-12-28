@@ -26,12 +26,12 @@
 
 | Funkcja | GPIO | Uwagi |
 |---------|------|-------|
-| RELAY CH0 | GPIO4 | Wyjście, aktywne HIGH |
-| RELAY CH1 | GPIO5 | Wyjście, aktywne HIGH |
-| RELAY CH2 | GPIO6 | Wyjście, aktywne HIGH |
-| RELAY CH3 | GPIO7 | Wyjście, aktywne HIGH |
-| RELAY CH4 | GPIO8 | Wyjście, aktywne HIGH |
-| RELAY CH5 | GPIO9 | Wyjście, aktywne HIGH |
+| RELAY CH0 | GPIO4 | Wyjście, aktywne LOW |
+| RELAY CH1 | GPIO5 | Wyjście, aktywne LOW |
+| RELAY CH2 | GPIO6 | Wyjście, aktywne LOW |
+| RELAY CH3 | GPIO7 | Wyjście, aktywne LOW |
+| RELAY CH4 | GPIO8 | Wyjście, aktywne LOW |
+| RELAY CH5 | GPIO9 | Wyjście, aktywne LOW |
 | VALIDATE CH0 | GPIO13 | Wejście, walidacja pracy pompy |
 | VALIDATE CH1 | GPIO14 | Wejście, walidacja pracy pompy |
 | VALIDATE CH2 | GPIO15 | Wejście, walidacja pracy pompy |

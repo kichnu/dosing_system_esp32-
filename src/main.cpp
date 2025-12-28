@@ -26,6 +26,9 @@
 bool systemHalted = false;
 bool pumpGlobalEnabled = true;
 
+// temporary########################################################################################################
+bool gpioValidationEnabled = GPIO_VALIDATION_DEFAULT;
+
 // ============================================================================
 // FORWARD DECLARATIONS
 // ============================================================================
@@ -40,6 +43,7 @@ void testFRAM();
 void testChannelManager();
 void testRTC();
 void testScheduler();
+void measureGpioTiming(uint8_t channel);
 
 // ============================================================================
 // SETUP
@@ -203,6 +207,8 @@ void printMenu() {
     Serial.println(F("│    m     Channel Manager test menu                              │"));
     Serial.println(F("│    w     RTC test menu (time/date)                              │"));
     Serial.println(F("│    d     Dosing scheduler test menu                             │"));
+    Serial.println(F("│    y     Toggle GPIO validation                                 │"));
+    Serial.println(F("│    z     Measure GPIO relay->validate timing                    │"));
     Serial.println(F("└─────────────────────────────────────────────────────────────────┘"));
     Serial.println();
 }
@@ -228,7 +234,7 @@ void processSerialCommand() {
                     Serial.printf("[CMD] CH%d OFF -> %s\n", ch, 
                                   RelayController::resultToString(res));
                 } else {
-                    RelayResult res = relayController.turnOn(ch, 30000); // 30s max
+                    RelayResult res = relayController.turnOn(ch, 3000); // 30s max
                     Serial.printf("[CMD] CH%d ON (30s max) -> %s\n", ch,
                                   RelayController::resultToString(res));
                 }
@@ -391,6 +397,32 @@ void processSerialCommand() {
             testScheduler();
             printMenu();
             break;
+
+            case 'y':
+        case 'Y':
+            gpioValidationEnabled = !gpioValidationEnabled;
+            Serial.printf("[CMD] GPIO Validation: %s\n", 
+                          gpioValidationEnabled ? "ENABLED" : "DISABLED");
+            break;
+
+        case 'z':
+        case 'Z': {
+            Serial.println(F("[CMD] GPIO Timing Measurement"));
+            Serial.print(F("      Enter channel (0-5): "));
+            
+            while (!Serial.available()) delay(10);
+            char chChar = Serial.read();
+            while (Serial.available()) Serial.read();
+            
+            uint8_t ch = chChar - '0';
+            if (ch < CHANNEL_COUNT) {
+                Serial.println(ch);
+                measureGpioTiming(ch);
+            } else {
+                Serial.println(F("Invalid channel"));
+            }
+            break;
+        }
             
         default:
             Serial.printf("[?] Unknown command: '%c' (0x%02X). Press 'h' for help.\n", 
@@ -880,6 +912,92 @@ void testScheduler() {
 }
 
 // ============================================================================
+// GPIO TIMING MEASUREMENT
+// ============================================================================
+void measureGpioTiming(uint8_t channel) {
+    if (channel >= CHANNEL_COUNT) {
+        Serial.println(F("[MEASURE] Invalid channel"));
+        return;
+    }
+    
+    Serial.printf("\n[MEASURE] === GPIO Timing Test CH%d ===\n", channel);
+    Serial.printf("[MEASURE] Relay pin: GPIO%d\n", RELAY_PINS[channel]);
+    Serial.printf("[MEASURE] Validate pin: GPIO%d\n", VALIDATE_PINS[channel]);
+    
+    // Read initial state
+    bool initialState = digitalRead(VALIDATE_PINS[channel]);
+    Serial.printf("[MEASURE] Initial validate state: %s\n", initialState ? "HIGH" : "LOW");
+    
+    // Check if pump already running
+    if (relayController.isAnyOn()) {
+        Serial.println(F("[MEASURE] ERROR: Another pump running!"));
+        return;
+    }
+    
+    Serial.println(F("[MEASURE] Starting relay..."));
+    
+    // Turn on relay
+    uint32_t startTime = micros();
+    RelayResult res = relayController.turnOn(channel, 10000); // 10s max
+    
+    if (res != RelayResult::OK) {
+        Serial.printf("[MEASURE] Failed to start: %s\n", RelayController::resultToString(res));
+        return;
+    }
+    
+    // Poll for state change
+    const uint32_t TIMEOUT_MS = 5000;  // 5 second timeout
+    const uint32_t POLL_INTERVAL_US = 100;  // Poll every 100µs
+    
+    uint32_t changeTime = 0;
+    bool stateChanged = false;
+    bool expectedState = !initialState;  // Oczekujemy zmiany stanu
+    
+    Serial.printf("[MEASURE] Waiting for validate pin to go %s...\n", 
+                  expectedState ? "HIGH" : "LOW");
+    
+    while ((micros() - startTime) < (TIMEOUT_MS * 1000UL)) {
+        bool currentState = digitalRead(VALIDATE_PINS[channel]);
+        
+        if (currentState == expectedState) {
+            changeTime = micros() - startTime;
+            stateChanged = true;
+            break;
+        }
+        
+        delayMicroseconds(POLL_INTERVAL_US);
+    }
+    
+    // Turn off relay
+    relayController.turnOff(channel);
+    
+    // Report results
+    Serial.println(F("\n[MEASURE] === RESULTS ==="));
+    
+    if (stateChanged) {
+        float timeMs = changeTime / 1000.0f;
+        Serial.printf("[MEASURE] State changed after: %.2f ms (%lu µs)\n", timeMs, changeTime);
+        Serial.printf("[MEASURE] Current GPIO_CHECK_DELAY_MS: %d ms\n", GPIO_CHECK_DELAY_MS);
+        
+        if (timeMs < GPIO_CHECK_DELAY_MS) {
+            Serial.printf("[MEASURE] OK - delay is sufficient (margin: %.1f ms)\n", 
+                          GPIO_CHECK_DELAY_MS - timeMs);
+        } else {
+            Serial.printf("[MEASURE] WARNING - delay too short! Increase by %.1f ms\n",
+                          timeMs - GPIO_CHECK_DELAY_MS + 500);
+        }
+    } else {
+        Serial.println(F("[MEASURE] TIMEOUT - no state change detected!"));
+        Serial.println(F("[MEASURE] Check wiring or validate pin configuration"));
+    }
+    
+    // Final state
+    bool finalState = digitalRead(VALIDATE_PINS[channel]);
+    Serial.printf("[MEASURE] Final validate state: %s\n", finalState ? "HIGH" : "LOW");
+    Serial.println();
+}
+
+// ============================================================================
 // SYSTEM INFO
 // ============================================================================
 void printSystemInfo() {
@@ -889,7 +1007,7 @@ void printSystemInfo() {
     Serial.printf("│  Firmware:       %-40s│\n", FIRMWARE_VERSION);
     Serial.printf("│  Channels:       %-40d│\n", CHANNEL_COUNT);
     Serial.printf("│  System Halted:  %-40s│\n", systemHalted ? "YES" : "NO");
-    Serial.printf("│  GPIO Validation:%-40s│\n", GPIO_VALIDATION_ENABLED ? "ENABLED" : "DISABLED");
+    Serial.printf("│  GPIO Validation:%-40s│\n", gpioValidationEnabled ? "ENABLED" : "DISABLED");
     Serial.println(F("├──────────────────────────────────────────────────────────┤"));
     Serial.printf("│  Chip Model:     %-40s│\n", ESP.getChipModel());
     Serial.printf("│  CPU Freq:       %-37d MHz│\n", ESP.getCpuFreqMHz());

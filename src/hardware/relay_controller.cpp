@@ -18,7 +18,7 @@ void RelayController::begin() {
     for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
         // Configure GPIO
         pinMode(RELAY_PINS[i], OUTPUT);
-        digitalWrite(RELAY_PINS[i], LOW);
+        digitalWrite(RELAY_PINS[i], HIGH);
         
         // Initialize state
         _channels[i].is_on = false;
@@ -231,7 +231,7 @@ uint32_t RelayController::getTotalRuntime() const {
 
 void RelayController::_setRelay(uint8_t channel, bool state) {
     if (channel >= CHANNEL_COUNT) return;
-    digitalWrite(RELAY_PINS[channel], state ? HIGH : LOW);
+    digitalWrite(RELAY_PINS[channel], state ? LOW : HIGH);
 }
 
 // ============================================================================

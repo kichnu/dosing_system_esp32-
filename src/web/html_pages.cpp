@@ -261,7 +261,7 @@ const char* DASHBOARD_HTML = R"rawliteral(
     --transition-slow: 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     
     /* Card sizing */
-    --card-max-width: 400px;
+    --card-width: 600px;
     --card-padding: 12px;
     --section-gap: 10px;
     --section-padding: 10px;
@@ -322,42 +322,103 @@ body::before {
    NAVIGATION - MOBILE LAYOUT
    ============================================================================ */
 .app-container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
+    /* position: relative; */
+    display: flex;
+    width: 100vw;
+    min-height: 100dvh;
+    /* overflow: hidden; */
     z-index: 1;
 }
 
 .vertical-slider {
     display: flex;
-    flex-direction: column;
-    height: 200%;
-    transition: transform var(--transition-slow);
-}
+    /* flex-direction: column; */
+    width: 1000px;
+    margin: 0 auto;
+    /* position: relative; */
+    /*transition: transform var(--transition-slow);*/
+    align-items: center; 
+    height: 100dvh;
+    flex-direction: row;
+    transform: none;
 
-.vertical-slider.show-channels {
-    transform: translateY(-50%);
 }
 
 /* Header Screen */
 .header-screen {
-    height: 50%;
-    min-height: 50%;
     display: flex;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
     flex-direction: column;
-    padding: 12px;
-    overflow-y: auto;
+    justify-content: start;
+    /* padding: 12px; */
+    margin: 10px;
+    width: 320px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 20;
+    transition: transform var(--transition-slow);
 }
+
+.header-screen.hidden {
+    transform: translateX(-100%);
+    transform: translateX(calc(-100% - 10px));
+
+}
+
+.header-wraper{
+    padding: 12px;
+}
+
 
 .header-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-bottom: 12px;
+    padding: 10px var(--card-padding);
+    margin-top: 36px;
+    background: var(--bg-card);
     border-bottom: 1px solid var(--border);
-    margin-bottom: 12px;
+    height: var(--header-height);
     flex-shrink: 0;
+}
+
+.header-toggle {
+    position: absolute;
+    right: -50px;
+    top: 0px;
+  
+ 
+    width: 50px;
+    height: 100px;
+    background: transparent;
+
+    border: none;
+
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 25;
+    transition: left var(--transition-slow);
+}
+
+.header-toggle svg {
+    width: 50px;
+    height: 100px;
+    color: var(--text-secondary);
+    transition: transform var(--transition-fast);
+    transform: rotate(180deg);
+}
+
+.header-toggle.shifted {
+    left: 320px;  
+}
+
+.header-toggle.shifted svg {
+    transform: rotate(0deg);
 }
 
 .logo {
@@ -383,13 +444,10 @@ body::before {
 }
 
 .logo-text {
+    margin-left: 10px;
     font-size: 1rem;
     font-weight: 700;
-}
-
-.logo-text span {
-    color: var(--text-muted);
-    font-weight: 500;
+    margin-top: 3px;
 }
 
 .header-actions {
@@ -421,7 +479,6 @@ body::before {
     height: 16px;
 }
 
-/* System Status */
 .system-status {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -511,6 +568,10 @@ body::before {
     position: relative;
 }
 
+.channel-preview.active{
+    background: rgba(56, 189, 248, 0.1);
+}
+
 .channel-preview:hover {
     border-color: var(--border-light);
     transform: translateY(-2px);
@@ -570,86 +631,96 @@ body::before {
     50% { opacity: 0.5; }
 }
 
-/* Swipe Hint */
-.swipe-hint {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 12px;
-    color: var(--text-muted);
-    font-size: var(--font-sm);
-    flex-shrink: 0;
-}
-
-.swipe-hint svg {
-    width: 14px;
-    height: 14px;
-    animation: bounce 2s infinite;
-}
-
 @keyframes bounce {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(4px); }
 }
 
-/* Channels Screen */
 .channels-screen {
-    height: 50%;
-    min-height: 50%;
-    position: relative;
-    overflow: hidden;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
+.dupa{
 
+    position: relative;
+    position: static;
+    position: absolut;
+    left: 100px;
+}
 
-/* Channel Dots */
 .channel-dots {
-    position: absolute;
-    bottom: 12px;
-    left: 50%;
-    transform: translateX(-50%);
+    display: flex;
+    justify-content: center;
     display: flex;
     gap: 6px;
     z-index: 10;
+    padding: 10px 0; 
+    width: 100%;
 }
 
 .channel-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
+    width: 26px;
+    height: 10px;
     background: var(--border);
     cursor: pointer;
     transition: all var(--transition-fast);
+    border-radius: 3px;
 }
 
 .channel-dot:hover { background: var(--text-muted); }
 
 .channel-dot.active {
     background: var(--accent-cyan);
-    width: 18px;
-    border-radius: 3px;
 }
 
 /* ============================================================================
    CHANNEL CARD
    ============================================================================ */
 .channel-card {
-    flex: 0 0 100%;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    background: var(--bg-primary);
-    overflow: hidden;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: var(--card-width);
+    max-height: calc(100% - 20px);
+    overflow-y: auto;
+    opacity: 0;
+    margin: 10px;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.channel-card {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.4) transparent;
 }
 
-/* Card Header */
+.channel-card::-webkit-scrollbar {
+    width: 16px;
+}
+
+.channel-card::-webkit-scrollbar-thumb {
+    background-color: rgba(255,255,255,0.25);
+    border-radius: 6px;
+}
+.channel-card.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
 .card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 10px var(--card-padding);
+    margin-top: 36px;
     background: var(--bg-card);
     border-bottom: 1px solid var(--border);
     height: var(--header-height);
@@ -663,7 +734,10 @@ body::before {
 }
 
 .channel-number {
-    font-size: var(--font-md);
+    margin-left: 10px;
+    margin-right: 10px;
+
+    font-size: 22px;
     font-weight: 700;
 }
 
@@ -707,7 +781,6 @@ body::before {
     height: 12px;
 }
 
-/* Card Content */
 .card-content {
     flex: 1;
     padding: var(--card-padding);
@@ -715,9 +788,9 @@ body::before {
     display: flex;
     flex-direction: column;
     gap: var(--section-gap);
+    overflow-y: auto;
 }
 
-/* Section */
 .section {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -761,10 +834,9 @@ body::before {
     padding: var(--section-padding);
 }
 
-/* Events Grid */
 .events-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(8, 1fr);
     gap: 4px;
 }
 
@@ -833,7 +905,6 @@ body::before {
     50% { box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.1); }
 }
 
-/* Days Grid */
 .days-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -888,7 +959,6 @@ body::before {
     vertical-align: middle;
 }
 
-/* Volume Section */
 .volume-row {
     display: flex;
     align-items: flex-end;
@@ -969,7 +1039,6 @@ body::before {
 .calc-item.ok .calc-val { color: var(--accent-green); }
 .calc-item.warn .calc-val { color: var(--accent-yellow); }
 
-/* Calibration Section */
 .calib-row {
     display: flex;
     gap: 8px;
@@ -1038,7 +1107,6 @@ body::before {
     border-color: var(--accent-cyan);
 }
 
-/* Validation Message */
 .valid-msg {
     display: flex;
     align-items: center;
@@ -1080,12 +1148,12 @@ body::before {
     color: var(--accent-green);
 }
 
-/* Card Footer */
 .card-footer {
     padding: 10px var(--card-padding);
     background: var(--bg-card);
     border-top: 1px solid var(--border);
     display: flex;
+    margin-bottom: 6px;
     gap: 8px;
     height: var(--footer-height);
     flex-shrink: 0;
@@ -1139,11 +1207,17 @@ body::before {
     color: var(--text-primary);
 }
 
-/* Pending Banner */
 .pending-banner {
     display: flex;
+    position: absolute;
+    top: 0;
+    left: 0;
     align-items: center;
+    border-top-left-radius: var(--radius-lg);
+    border-top-right-radius: var(--radius-lg);
     gap: 6px;
+    height: 32px;
+    width: 100%;
     padding: 8px var(--card-padding);
     background: rgba(56, 189, 248, 0.1);
     border-bottom: 1px solid rgba(56, 189, 248, 0.3);
@@ -1156,106 +1230,65 @@ body::before {
     width: 14px;
     height: 14px;
 }
+/* MEDIA################################################################################################################ */
 
-/* ============================================================================
-   DESKTOP MEDIA QUERIES
-   ============================================================================ */
-@media (min-width: 769px) {
-    .vertical-slider {
-        height: 100%;
-        flex-direction: row;
-    }
-
-    .vertical-slider.show-channels {
-        transform: none;
-    }
-
-    .header-screen {
-        width: 280px;
-        min-width: 280px;
-        height: 100%;
-        border-right: 1px solid var(--border);
-    }
-
-    .channels-screen {
-        flex: 1;
-        height: 100%;
-    }
-
-    .swipe-hint,
-    .back-btn,
-    .channel-dots {
-        display: none;
-    }
-
-    .horizontal-slider {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        grid-template-rows: repeat(3, 1fr);
-        gap: 12px;
-        padding: 12px;
-        overflow-y: auto;
-        height: 100%;
-    }
-
-    .horizontal-slider {
-        display: flex;
-        height: 100%;
-        transition: transform var(--transition-slow);
-    }
-
+@media (max-width: 768px) and (hover: none) {
     .channel-card {
-        flex: none;
-        width: auto;
+        left: 0;
+        transform: none;
+        width: 100%;
+        max-height: 100dvh;
+        margin: 0;
+        border: none;
+        border-radius: 0;
+    }
+
+    .header-screen{
+        width: 100vw;
+        border: none;
+        border-radius: 0;
+        margin: 0;
+        height: 100dvh;
+        justify-items: start;
+        
+
+    }
+
+    .card-header{
         height: auto;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        background: var(--bg-card);
-        max-height: 100%;
+    }
+    .channel-title{
+        margin-left: 60px;
     }
 
-    .card-content {
-        overflow-y: auto;
+    .header-toggle{
+        top: 10px;
+    }
+
+    .header-toggle.shifted {
+    left: 150px;
+    top: 6px;
     }
 }
 
-@media (min-width: 1100px) {
-    .header-screen {
-        width: 300px;
-        min-width: 300px;
-    }
-
-    .horizontal-slider {
-        grid-template-columns: repeat(3, 1fr);
-        grid-template-rows: repeat(2, 1fr);
-    }
-}
-
-@media (min-width: 1400px) {
-    .header-screen {
-        width: 320px;
-        min-width: 320px;
-    }
-
-    .horizontal-slider {
-        gap: 16px;
-        padding: 16px;
-    }
-}
-    </style>
+</style>
 </head>
 <body>
     <div class="app-container">
-        <div class="vertical-slider" id="verticalSlider">
-            
-            <!-- HEADER SCREEN -->
-            <div class="header-screen">
+        <div class="header-screen">
+
+                <button class="header-toggle shifted" id="headerToggle">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <polyline points="15,18 9,12 15,6"/>
+                    </svg>
+                </button>
+
                 <div class="header-bar">
                     <div class="logo">
                         <div class="logo-icon">
                             <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                         </div>
-                        <div class="logo-text">DOZOWNIK <span>– Sys</span></div>
+                        <div class="logo-text">DOZOWNIK</div>
                     </div>
                     <div class="header-actions">
                         <button class="btn-icon" title="Logout" onclick="logout()">
@@ -1268,45 +1301,38 @@ body::before {
                     </div>
                 </div>
 
-                <div class="system-status">
-                    <div class="status-header">
-                        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-                        System Status
+                <div class="header-wraper">
+                    <div class="system-status">
+                        <div class="status-header">
+                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                            System Status
+                        </div>
+                        <div class="status-grid">
+                            <div class="status-item ok" id="sysStatus">
+                                <div class="label">System</div>
+                                <div class="value">OK</div>
+                            </div>
+                            <div class="status-item">
+                                <div class="label">Time</div>
+                                <div class="value" id="sysTime">--:--</div>
+                            </div>
+                            <div class="status-item" id="wifiStatus">
+                                <div class="label">WiFi</div>
+                                <div class="value">--</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="status-grid">
-                        <div class="status-item ok" id="sysStatus">
-                            <div class="label">System</div>
-                            <div class="value">OK</div>
-                        </div>
-                        <div class="status-item">
-                            <div class="label">Time</div>
-                            <div class="value" id="sysTime">--:--</div>
-                        </div>
-                        <div class="status-item" id="wifiStatus">
-                            <div class="label">WiFi</div>
-                            <div class="value">--</div>
-                        </div>
+                    
+                    <div class="channels-overview">
+                        <div class="overview-title">Channels</div>
+                        <div class="overview-grid" id="overviewGrid"></div>
                     </div>
-                </div>
-
-                <div class="channels-overview">
-                    <div class="overview-title">Channels</div>
-                    <div class="overview-grid" id="overviewGrid"></div>
-                </div>
-
-                <div class="swipe-hint">
-                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <polyline points="6,9 12,15 18,9"/>
-                    </svg>
-                    Swipe down for channels
                 </div>
             </div>
-
+            
+            <div class="vertical-slider" id="verticalSlider">
             <!-- CHANNELS SCREEN -->
-            <div class="channels-screen">
-                <div class="horizontal-slider" id="horizontalSlider"></div>
-                <div class="channel-dots" id="channelDots"></div>
-            </div>
+            <div class="channels-screen" id="channelScreen"></div>
 
         </div>
     </div>
@@ -1336,6 +1362,7 @@ let channels = [];
 let currentCh = 0;
 let showingChannels = false;
 let touchStart = {x:0, y:0};
+let editingChannel = -1;
 
 // ============================================================================
 // INIT
@@ -1374,10 +1401,13 @@ function init() {
         eventsCompleted: 0,
         state: 'pending'
     };
+    setupHeaderToggle();
 
     renderOverview();
     renderChannels();
-    renderDots();
+
+    goToChannel(0);
+   // renderDots();
     setupTouch();
     updateClock();
     setInterval(updateClock, 1000);
@@ -1395,8 +1425,9 @@ function renderOverview() {
     grid.innerHTML = channels.map((ch, i) => {
         const evCnt = popcount(ch.events);
         const single = evCnt > 0 ? (ch.dailyDose / evCnt).toFixed(1) : '0.0';
+        const activeClass = (i === currentCh) ? 'active' : '';
         return `
-            <div class="channel-preview ${ch.state}" onclick="goToChannel(${i})">
+            <div class="channel-preview ${ch.state} ${activeClass}" onclick="goToChannel(${i})">
                 <div class="state-dot"></div>
                 <div class="ch-num">CH ${i+1}</div>
                 <div class="ch-dose">${ch.dailyDose > 0 ? ch.dailyDose.toFixed(1)+' ml' : 'Off'}</div>
@@ -1407,13 +1438,18 @@ function renderOverview() {
 }
 
 function renderChannels() {
-    const slider = document.getElementById('horizontalSlider');
+    const slider = document.getElementById('channelScreen');
     slider.innerHTML = channels.map((ch, idx) => renderChannelCard(ch, idx)).join('');
     
     // Attach event listeners
     channels.forEach((ch, idx) => {
         attachCardEvents(idx);
     });
+
+        const activeCard = document.querySelector(`.channel-card[data-ch="${currentCh}"]`);
+    if (activeCard) {
+        activeCard.classList.add('active');
+    }
 }
 
 function renderChannelCard(ch, idx) {
@@ -1652,34 +1688,32 @@ function renderChannelCard(ch, idx) {
 }
 
 function attachCardEvents(idx) {
+    // Mark as editing on any interaction
+    const markEditing = () => { editingChannel = idx; };
+    
     // Event checkboxes
     document.querySelectorAll(`.event-cb[data-ch="${idx}"]`).forEach(cb => {
-        cb.addEventListener('change', () => updateChannel(idx));
+        cb.addEventListener('change', () => { markEditing(); updateChannel(idx); });
     });
     
     // Day checkboxes
     document.querySelectorAll(`.day-cb[data-ch="${idx}"]`).forEach(cb => {
-        cb.addEventListener('change', () => updateChannel(idx));
+        cb.addEventListener('change', () => { markEditing(); updateChannel(idx); });
     });
     
     // Dose input
     const doseInput = document.getElementById(`dose_${idx}`);
     if (doseInput) {
+        doseInput.addEventListener('focus', markEditing);
         doseInput.addEventListener('input', () => updateChannel(idx));
     }
     
     // Calibration input
     const calibInput = document.getElementById(`calibMl_${idx}`);
     if (calibInput) {
+        calibInput.addEventListener('focus', markEditing);
         calibInput.addEventListener('change', () => calcCalibration(idx));
     }
-}
-
-function renderDots() {
-    const dots = document.getElementById('channelDots');
-    dots.innerHTML = channels.map((_, i) => 
-        `<div class="channel-dot ${i === currentCh ? 'active' : ''}" onclick="goToChannel(${i})"></div>`
-    ).join('');
 }
 
 // ============================================================================
@@ -1776,8 +1810,7 @@ function updateChannel(idx) {
         badge.className = `state-badge ${ch.state}`;
         badge.textContent = getStateLabel(ch.state);
     }
-    
-    // Update overview
+
     renderOverview();
 }
 
@@ -1843,6 +1876,7 @@ function saveChanges(idx) {
     })
     .then(r => r.json())
     .then(data => {
+        editingChannel = -1;
         if (data.success) {
             ch.state = 'pending';
             renderChannels();
@@ -1856,6 +1890,7 @@ function saveChanges(idx) {
 }
 
 function cancelChanges(idx) {
+    editingChannel = -1;
     // Reload from server
     loadStatus();
 }
@@ -1873,17 +1908,28 @@ function showNav() {
     document.getElementById('verticalSlider').classList.remove('show-channels');
 }
 
-function goToChannel(idx) {
-    currentCh = idx;
-    updateSlider();
-    renderDots();
-    if (window.innerWidth <= 768) showChannels();
+function setupHeaderToggle() {
+    const toggle = document.getElementById('headerToggle');
+    const header = document.querySelector('.header-screen');
+    
+    toggle.addEventListener('click', () => {
+        header.classList.toggle('hidden');
+        toggle.classList.toggle('shifted');
+    });
 }
 
-function updateSlider() {
-    const slider = document.getElementById('horizontalSlider');
-    if (window.innerWidth <= 768) {
-        slider.style.transform = `translateX(-${currentCh * 100}%)`;
+function goToChannel(idx) {
+  
+    document.querySelectorAll('.channel-card').forEach(card => {
+        card.classList.remove('active');
+    });
+    
+    currentCh = idx;
+    renderOverview();
+
+    const newCard = document.querySelector(`.channel-card[data-ch="${idx}"]`);
+    if (newCard) {
+        newCard.classList.add('active');
     }
 }
 
@@ -1900,7 +1946,7 @@ function setupTouch() {
         touchStart.x = e.changedTouches[0].screenX;
         touchStart.y = e.changedTouches[0].screenY;
     }, { passive: true });
-    
+
     container.addEventListener('touchend', e => {
         const dx = e.changedTouches[0].screenX - touchStart.x;
         const dy = e.changedTouches[0].screenY - touchStart.y;
@@ -1927,6 +1973,9 @@ function loadStatus() {
         .then(data => {
             if (data.channels) {
                 data.channels.forEach((chData, i) => {
+                    // Skip channel being edited
+                    if (i === editingChannel) return;
+                    
                     if (channels[i]) {
                         channels[i].events = chData.events || 0;
                         channels[i].days = chData.days || 0;
@@ -1936,7 +1985,11 @@ function loadStatus() {
                         channels[i].state = chData.state || 'inactive';
                     }
                 });
-                renderChannels();
+                
+                // Only re-render if not editing
+                if (editingChannel === -1) {
+                    renderChannels();
+                }
                 renderOverview();
             }
             
@@ -1983,14 +2036,6 @@ function logout() {
         fetch('api/logout', { method: 'POST' }).then(() => location.href = '/login');
     }
 }
-
-window.addEventListener('resize', () => {
-    if (window.innerWidth > 768) {
-        document.getElementById('horizontalSlider').style.transform = '';
-    } else {
-        updateSlider();
-    }
-});
 
 document.addEventListener('DOMContentLoaded', init);
 </script>

@@ -14,7 +14,6 @@ DosingScheduler dosingScheduler;
 bool DosingScheduler::begin() {
     Serial.println(F("[SCHED] Initializing..."));
     
-    _enabled = false;
     _state = SchedulerState::SCHED_DISABLED;
     
     memset(&_currentEvent, 0, sizeof(_currentEvent));
@@ -26,15 +25,54 @@ bool DosingScheduler::begin() {
     _lastDay = 255;
     _todayEventCount = 0;
     
+    // Load state from FRAM
+    SystemState sysState;
+    if (framController.readSystemState(&sysState)) {
+        _enabled = (sysState.system_enabled != 0);
+        Serial.printf("[SCHED] Loaded state from FRAM: %s\n", _enabled ? "ENABLED" : "DISABLED");
+        
+        // Increment boot count
+        sysState.boot_count++;
+        framController.writeSystemState(&sysState);
+        Serial.printf("[SCHED] Boot count: %lu\n", sysState.boot_count);
+    } else {
+        Serial.println(F("[SCHED] Failed to load FRAM state, defaulting to ENABLED"));
+        _enabled = true;
+    }
+    
     // Get current time
     if (rtcController.isReady() && rtcController.isTimeValid()) {
         TimeInfo now = rtcController.getTime();
-        _lastHour = now.hour;
+        _lastHour = 255;
         _lastDay = now.day;
+        
+        // Calculate current UTC day (simple: year*366 + month*31 + day)
+        uint32_t currentUtcDay = (uint32_t)now.year * 366 + (uint32_t)now.month * 31 + now.day;
+        
+        // Check if daily reset needed (different day than last reset)
+        if (framController.readSystemState(&sysState)) {
+            if (sysState.last_daily_reset_day != currentUtcDay) {
+                Serial.println(F("[SCHED] New day detected - performing startup daily reset"));
+                _performDailyReset();
+                
+                // Save new reset day
+                sysState.last_daily_reset_day = currentUtcDay;
+                framController.writeSystemState(&sysState);
+            } else {
+                Serial.println(F("[SCHED] Same day - no reset needed"));
+            }
+        }
+    } else {
+        Serial.println(F("[SCHED] WARNING: RTC not ready, cannot check daily reset"));
+    }
+    
+    // Set initial state based on enabled
+    if (_enabled) {
+        _state = SchedulerState::IDLE;
     }
     
     _initialized = true;
-    Serial.println(F("[SCHED] Ready (disabled)"));
+    Serial.printf("[SCHED] Ready (%s)\n", _enabled ? "ENABLED" : "DISABLED");
     
     return true;
 }
@@ -127,6 +165,15 @@ void DosingScheduler::setEnabled(bool enabled) {
     
     _enabled = enabled;
     
+    // Save to FRAM
+    SystemState sysState;
+    if (framController.readSystemState(&sysState)) {
+        sysState.system_enabled = enabled ? 1 : 0;
+        if (framController.writeSystemState(&sysState)) {
+            Serial.printf("[SCHED] State saved to FRAM: %s\n", enabled ? "ENABLED" : "DISABLED");
+        }
+    }
+    
     if (enabled) {
         Serial.println(F("[SCHED] Enabled"));
         _state = SchedulerState::IDLE;
@@ -181,6 +228,15 @@ bool DosingScheduler::_performDailyReset() {
     Serial.println(F("[SCHED] Resetting daily states..."));
     channelManager.resetDailyStates();
     
+    // Save reset day to FRAM
+    uint32_t currentUtcDay = (uint32_t)now.year * 366 + (uint32_t)now.month * 31 + now.day;
+    SystemState sysState;
+    if (framController.readSystemState(&sysState)) {
+        sysState.last_daily_reset_day = currentUtcDay;
+        framController.writeSystemState(&sysState);
+        Serial.printf("[SCHED] Reset day saved: %lu\n", currentUtcDay);
+    }
+    
     Serial.println(F("[SCHED] Daily reset complete"));
     
     return true;
@@ -203,30 +259,27 @@ void DosingScheduler::_checkSchedule() {
         return;
     }
     
-    // Check if hour changed
-    if (now.hour == _lastHour) {
-        return; // Already checked this hour
-    }
-    
-    _lastHour = now.hour;
+    // Update last check
     _lastCheckTime = millis();
     
-    Serial.printf("[SCHED] Checking hour %02d (day %d)\n", now.hour, now.dayOfWeek);
+    // Log only on hour change
+    if (now.hour != _lastHour) {
+        _lastHour = now.hour;
+        Serial.printf("[SCHED] New hour %02d (day %d)\n", now.hour, now.dayOfWeek);
+    }
     
-    // Calculate minute window for this check
-    // Events should run at channel offset: CH0=:00, CH1=:10, etc.
     uint8_t currentMinute = now.minute;
     
     // Find events to execute
     for (uint8_t ch = 0; ch < CHANNEL_COUNT; ch++) {
         uint8_t channelOffset = ch * CHANNEL_OFFSET_MINUTES;
         
-        // Check if we're in the window for this channel
+        // Check if we're in the window for this channel (:00-:04, :10-:14, etc.)
         if (currentMinute >= channelOffset && currentMinute < channelOffset + 5) {
-            // Check if this channel should execute
+            // Check if this channel should execute (includes "not completed" check)
             if (channelManager.shouldExecuteEvent(ch, now.hour, now.dayOfWeek)) {
-                Serial.printf("[SCHED] Event due: CH%d at %02d:%02d\n", 
-                              ch, now.hour, channelOffset);
+                Serial.printf("[SCHED] Event due: CH%d at %02d:%02d (now %02d:%02d)\n", 
+                              ch, now.hour, channelOffset, now.hour, currentMinute);
                 
                 if (_startDosing(ch, now.hour)) {
                     return; // One at a time

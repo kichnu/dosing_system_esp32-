@@ -92,8 +92,13 @@ static const uint8_t VALIDATE_PINS[6] = {
 // ============================================================================
 // GPIO VALIDATION
 // ============================================================================
-#define GPIO_VALIDATION_ENABLED     true    // Globalne włączenie walidacji
-#define GPIO_CHECK_DELAY_MS         2000    // Opóźnienie przed sprawdzeniem (2s)
+
+// temporary########################################################################################################
+#define GPIO_VALIDATION_DEFAULT     true    // Wartość startowa
+extern bool gpioValidationEnabled;  
+
+// #define GPIO_VALIDATION_ENABLED     false    // Globalne włączenie walidacji
+#define GPIO_CHECK_DELAY_MS         3    // Opóźnienie przed sprawdzeniem (2s)
 #define GPIO_DEBOUNCE_MS            1000    // Czas debounce (1s)
 #define GPIO_EXPECTED_STATE         HIGH    // Oczekiwany stan przy działającej pompie
 
@@ -177,6 +182,8 @@ inline uint8_t popcount32(uint32_t n) {
     while (n) { count += n & 1; n >>= 1; }
     return count;
 }
+
+
 
 #define ENABLE_SERIAL_DEBUG     true
 #define ENABLE_FULL_LOGGING     true

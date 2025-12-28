@@ -106,6 +106,10 @@ bool ChannelManager::setEventsBitmask(uint8_t channel, uint32_t bitmask) {
     bitmask &= 0x00FFFFFE;
     
     _pendingConfig[channel].events_bitmask = bitmask;
+    
+    // Auto-enable if has events, auto-disable if no events
+    _pendingConfig[channel].enabled = (bitmask > 0) ? 1 : 0;
+    
     return _savePendingConfig(channel);
 }
 

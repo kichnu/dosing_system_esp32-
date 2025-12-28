@@ -192,14 +192,14 @@ static_assert(sizeof(ChannelDailyState) == 16, "ChannelDailyState must be 16 byt
  * Globalny stan systemu
  */
 struct SystemState {
-    uint8_t  system_enabled;        // System aktywny (0/1)
+    uint8_t  system_enabled;        // Scheduler aktywny (0/1)
     uint8_t  system_halted;         // Błąd krytyczny - zatrzymanie (0/1)
     uint8_t  active_channel;        // Aktualnie aktywny kanał (255 = żaden)
     uint8_t  active_pump_state;     // PumpState aktywnej pompy
     
-    uint32_t last_vps_log_day;      // UTC day ostatniego logu VPS
+    uint32_t last_daily_reset_day;  // UTC day ostatniego daily reset
     uint32_t boot_count;            // Licznik restartów
-    uint32_t uptime_seconds;        // Czas pracy (aktualizowany okresowo)
+    uint32_t last_vps_log_day;      // UTC day ostatniego logu VPS
     
     uint8_t  pending_changes_mask;  // Bitmask kanałów z pending changes
     uint8_t  _reserved[3];          // Padding

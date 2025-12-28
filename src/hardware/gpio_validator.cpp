@@ -14,10 +14,12 @@ GpioValidator gpioValidator;
 void GpioValidator::begin() {
     Serial.println(F("[GPIO_VAL] Initializing GPIO validator..."));
     
-    // Configure validate GPIOs as INPUT
+
+
     for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
-        pinMode(VALIDATE_PINS[i], INPUT);
-        Serial.printf("           CH%d -> GPIO%d (INPUT)\n", i, VALIDATE_PINS[i]);
+        pinMode(VALIDATE_PINS[i], INPUT_PULLUP);
+        Serial.printf("CH%d -> GPIO%d (INPUT_PULLUP, active LOW)\n",
+                  i, VALIDATE_PINS[i]);
     }
     
     _state = State::IDLE;
@@ -30,7 +32,7 @@ void GpioValidator::begin() {
     _failCount = 0;
     _initialized = true;
     
-    if (GPIO_VALIDATION_ENABLED) {
+    if (gpioValidationEnabled) {
         Serial.println(F("[GPIO_VAL] Validation ENABLED"));
     } else {
         Serial.println(F("[GPIO_VAL] Validation DISABLED (GPIO_VALIDATION_ENABLED=false)"));
@@ -53,7 +55,7 @@ void GpioValidator::startValidation(uint8_t channel) {
     }
     
     // Check if validation is enabled
-    if (!GPIO_VALIDATION_ENABLED) {
+    if (!gpioValidationEnabled) {
         _lastResult = ValidationResult::SKIPPED;
         _state = State::IDLE;
         Serial.printf("[GPIO_VAL] CH%d validation SKIPPED (disabled)\n", channel);
@@ -116,7 +118,7 @@ ValidationResult GpioValidator::update() {
                     }
                 } else {
                     // Consistent read - validate
-                    bool expected = (GPIO_EXPECTED_STATE == HIGH);
+                    bool expected = (GPIO_EXPECTED_STATE == LOW);
                     
                     if (finalRead == expected) {
                         _lastResult = ValidationResult::OK;
@@ -180,7 +182,7 @@ uint8_t GpioValidator::getValidatingChannel() const {
 
 bool GpioValidator::readGpioRaw(uint8_t channel) const {
     if (channel >= CHANNEL_COUNT) return false;
-    return digitalRead(VALIDATE_PINS[channel]) == HIGH;
+    return digitalRead(VALIDATE_PINS[channel]) == HIGH; // aktywne gdy przekaźnik rozwiera się/styk przełącza się na pompę
 }
 
 bool GpioValidator::readGpioDebounced(uint8_t channel, uint32_t debounce_ms) const {
