@@ -19,417 +19,10 @@
 
 #include "web_server.h"
 #include <WiFi.h>
+#include <esp_task_wdt.h>
 
-// ============================================================================
-// GLOBAL STATE
-// ============================================================================
-bool systemHalted = false;
-bool pumpGlobalEnabled = true;
 
-// temporary########################################################################################################
-bool gpioValidationEnabled = GPIO_VALIDATION_DEFAULT;
 
-// ============================================================================
-// FORWARD DECLARATIONS
-// ============================================================================
-void printBanner();
-void printMenu();
-void processSerialCommand();
-void i2cScan();
-void printSystemInfo();
-void printChannelConfigSize();
-void testTimedPump(uint8_t channel, uint32_t duration_ms);
-void testFRAM();
-void testChannelManager();
-void testRTC();
-void testScheduler();
-void measureGpioTiming(uint8_t channel);
-
-// ============================================================================
-// SETUP
-// ============================================================================
-void setup() {
-
-    #include "../core/logging.h"
-    // Initialize Serial
-    Serial.begin(SERIAL_BAUD_RATE);
-
-    initLogging();
-    
-    // Wait for Serial (USB CDC)
-    uint32_t startWait = millis();
-    while (!Serial && (millis() - startWait < 3000)) {
-        delay(10);
-    }
-    delay(500);
-    
-    printBanner();
-    
-    // Initialize I2C
-    Serial.println(F("[INIT] Initializing I2C..."));
-    Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
-    Wire.setClock(I2C_FREQUENCY);
-    Serial.printf("        SDA=%d, SCL=%d, Freq=%d Hz\n", 
-                  I2C_SDA_PIN, I2C_SCL_PIN, I2C_FREQUENCY);
-    
-    // Initialize Relay Controller
-    relayController.begin();
-    
-    // Initialize GPIO Validator
-    gpioValidator.begin();
-
-    // tests%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-    // Initialize WiFi (tymczasowo hardcoded do testów)
-    Serial.println(F("[INIT] Connecting WiFi..."));
-    WiFi.begin("KiG_2.4_IOT", "*qY4I@5&*%0lK1Q$U6UV7^S");  // TODO: credentials_manager
-    
-    uint8_t wifiAttempts = 0;
-    while (WiFi.status() != WL_CONNECTED && wifiAttempts < 30) {
-        delay(500);
-        Serial.print(".");
-        wifiAttempts++;
-    }
-    
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.printf("\n[INIT] WiFi connected: %s\n", WiFi.localIP().toString().c_str());
-        initWebServer();
-    } else {
-        Serial.println(F("\n[INIT] WiFi FAILED - web server disabled"));
-    }
-    
-    
-    // Initialize FRAM Controller
-    if (!framController.begin()) {
-        Serial.println(F("[INIT] WARNING: FRAM init failed!"));
-    }
-    
-    // Initialize Channel Manager
-    if (!channelManager.begin()) {
-        Serial.println(F("[INIT] WARNING: Channel Manager init failed!"));
-    }
-    
-    // Initialize RTC Controller
-    if (!rtcController.begin()) {
-        Serial.println(F("[INIT] WARNING: RTC init failed!"));
-    }
-    
-    // Initialize Dosing Scheduler
-    if (!dosingScheduler.begin()) {
-        Serial.println(F("[INIT] WARNING: Scheduler init failed!"));
-    }
-    
-    // tests%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    Serial.println();
-    Serial.println(F("[INIT] === INITIALIZATION COMPLETE ==="));
-    Serial.println();
-    
-    // Run I2C scan
-    i2cScan();
-    
-    // Print menu
-    printMenu();
-}
-
-// ============================================================================
-// LOOP
-// ============================================================================
-void loop() {
-    // Update controllers
-    relayController.update();
-    gpioValidator.update();
-
-    // tests%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-    
-    // Update scheduler
-    dosingScheduler.update();
-    // tests%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    
-    // Process Serial commands
-    if (Serial.available()) {
-        processSerialCommand();
-    }
-    
-    // Show runtime if pump active
-    static uint32_t lastStatusPrint = 0;
-    if (relayController.isAnyOn() && (millis() - lastStatusPrint > 1000)) {
-        lastStatusPrint = millis();
-        uint8_t ch = relayController.getActiveChannel();
-        uint32_t runtime = relayController.getActiveRuntime();
-        uint32_t remaining = relayController.getRemainingTime();
-        Serial.printf("[STATUS] CH%d running: %lu ms (remaining: %lu ms)\n",
-                      ch, runtime, remaining);
-    }
-    
-    delay(10);
-}
-
-// ============================================================================
-// BANNER & MENU
-// ============================================================================
-void printBanner() {
-    Serial.println();
-    Serial.println(F("╔═══════════════════════════════════════════════════════════════╗"));
-    Serial.println(F("║          DOZOWNIK - Automatic Fertilizer Dosing System        ║"));
-    Serial.println(F("║                    FAZA 2 - Controller Test                   ║"));
-    Serial.println(F("╠═══════════════════════════════════════════════════════════════╣"));
-    Serial.printf("║  Firmware: %-20s  Channels: %-14d  ║\n", FIRMWARE_VERSION, CHANNEL_COUNT);
-    Serial.printf("║  Device:   %-20s  Build: %s %-5s  ║\n", DEVICE_ID, __DATE__, "");
-    Serial.println(F("╚═══════════════════════════════════════════════════════════════╝"));
-    Serial.println();
-}
-
-void printMenu() {
-    Serial.println(F("┌─────────────────────────────────────────────────────────────────┐"));
-    Serial.println(F("│                    FAZA 2 - CONTROLLER TEST                     │"));
-    Serial.println(F("├─────────────────────────────────────────────────────────────────┤"));
-    Serial.println(F("│  RELAY CONTROLLER:                                              │"));
-    Serial.println(F("│    0-5   Toggle relay CH0-CH5 (with mutex)                      │"));
-    Serial.println(F("│    t     Timed pump test (3s on selected channel)               │"));
-    Serial.println(F("│    a     All relays ON (blocked by mutex!)                      │"));
-    Serial.println(F("│    o     All relays OFF (emergency stop)                        │"));
-    Serial.println(F("│    p     Print relay status                                     │"));
-    Serial.println(F("├─────────────────────────────────────────────────────────────────┤"));
-    Serial.println(F("│  GPIO VALIDATOR:                                                │"));
-    Serial.println(F("│    g     Read all GPIO states                                   │"));
-    Serial.println(F("│    v     Run validation on active channel                       │"));
-    Serial.println(F("├─────────────────────────────────────────────────────────────────┤"));
-    Serial.println(F("│  SYSTEM:                                                        │"));
-    Serial.println(F("│    i     I2C scan                                               │"));
-    Serial.println(F("│    s     System info                                            │"));
-    Serial.println(F("│    c     Config struct sizes                                    │"));
-    Serial.println(F("│    h     This help menu                                         │"));
-    Serial.println(F("│    e     Toggle emergency halt                                  │"));
-    Serial.println(F("│    x     Reboot                                                 │"));
-    Serial.println(F("│    f     FRAM test (read all sections)                          │"));
-    Serial.println(F("│    r     Factory reset FRAM                                     │"));
-    Serial.println(F("│    m     Channel Manager test menu                              │"));
-    Serial.println(F("│    w     RTC test menu (time/date)                              │"));
-    Serial.println(F("│    d     Dosing scheduler test menu                             │"));
-    Serial.println(F("│    y     Toggle GPIO validation                                 │"));
-    Serial.println(F("│    z     Measure GPIO relay->validate timing                    │"));
-    Serial.println(F("└─────────────────────────────────────────────────────────────────┘"));
-    Serial.println();
-}
-
-// ============================================================================
-// SERIAL COMMAND PROCESSOR
-// ============================================================================
-void processSerialCommand() {
-    char cmd = Serial.read();
-    
-    // Flush remaining input
-    while (Serial.available()) Serial.read();
-    
-    Serial.println();
-    
-    switch (cmd) {
-        // --- Relay commands ---
-        case '0': case '1': case '2': case '3': case '4': case '5': {
-            uint8_t ch = cmd - '0';
-            if (ch < CHANNEL_COUNT) {
-                if (relayController.isChannelOn(ch)) {
-                    RelayResult res = relayController.turnOff(ch);
-                    Serial.printf("[CMD] CH%d OFF -> %s\n", ch, 
-                                  RelayController::resultToString(res));
-                } else {
-                    RelayResult res = relayController.turnOn(ch, 3000); // 30s max
-                    Serial.printf("[CMD] CH%d ON (30s max) -> %s\n", ch,
-                                  RelayController::resultToString(res));
-                }
-            }
-            break;
-        }
-        
-        case 't':
-        case 'T': {
-            Serial.println(F("[CMD] Timed pump test"));
-            Serial.print(F("      Enter channel (0-5): "));
-            
-            // Wait for input
-            while (!Serial.available()) delay(10);
-            char chChar = Serial.read();
-            while (Serial.available()) Serial.read();
-            
-            uint8_t ch = chChar - '0';
-            if (ch < CHANNEL_COUNT) {
-                Serial.printf("%d\n", ch);
-                testTimedPump(ch, 3000); // 3 second test
-            } else {
-                Serial.println(F("Invalid channel"));
-            }
-            break;
-        }
-        
-        case 'a':
-        case 'A':
-            Serial.println(F("[CMD] Trying to turn ALL ON (mutex should block)"));
-            for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
-                RelayResult res = relayController.turnOn(i, 5000);
-                Serial.printf("       CH%d -> %s\n", i, 
-                              RelayController::resultToString(res));
-            }
-            break;
-            
-        case 'o':
-        case 'O':
-            Serial.println(F("[CMD] All OFF"));
-            relayController.allOff();
-            break;
-            
-        case 'p':
-        case 'P':
-            relayController.printStatus();
-            break;
-            
-        // --- GPIO commands ---
-        case 'g':
-        case 'G':
-            gpioValidator.printAllGpio();
-            break;
-            
-        case 'v':
-        case 'V': {
-            uint8_t active = relayController.getActiveChannel();
-            if (active < CHANNEL_COUNT) {
-                Serial.printf("[CMD] Starting validation for CH%d\n", active);
-                gpioValidator.startValidation(active);
-                
-                // Wait for result
-                while (gpioValidator.isValidating()) {
-                    gpioValidator.update();
-                    delay(100);
-                }
-                
-                ValidationResult res = gpioValidator.getLastResult();
-                Serial.printf("[CMD] Validation result: %s\n",
-                              GpioValidator::resultToString(res));
-            } else {
-                Serial.println(F("[CMD] No pump active - turn one on first"));
-            }
-            break;
-        }
-
-        case 'f':
-        case 'F':
-            testFRAM();
-            break;
-            
-        case 'r':
-        case 'R': {
-            Serial.println(F("[CMD] Factory reset FRAM? (y/n): "));
-            while (!Serial.available()) delay(10);
-            char confirm = Serial.read();
-            while (Serial.available()) Serial.read();
-            
-            if (confirm == 'y' || confirm == 'Y') {
-                Serial.println(F("[CMD] Resetting FRAM..."));
-                if (framController.factoryReset()) {
-                    Serial.println(F("[CMD] Factory reset complete"));
-                } else {
-                    Serial.println(F("[CMD] Factory reset FAILED!"));
-                }
-            } else {
-                Serial.println(F("[CMD] Cancelled"));
-            }
-            break;
-        }
-            
-        // --- System commands ---
-        case 'i':
-        case 'I':
-            i2cScan();
-            break;
-            
-        case 's':
-        case 'S':
-            printSystemInfo();
-            break;
-            
-        case 'c':
-        case 'C':
-            printChannelConfigSize();
-            break;
-            
-        case 'e':
-        case 'E':
-            systemHalted = !systemHalted;
-            Serial.printf("[CMD] System halt: %s\n", 
-                          systemHalted ? "ENABLED (pumps blocked)" : "DISABLED");
-            if (systemHalted) {
-                relayController.allOff();
-            }
-            break;
-            
-        case 'h':
-        case 'H':
-        case '?':
-            printMenu();
-            break;
-            
-        case 'x':
-        case 'X':
-            Serial.println(F("[REBOOT] Restarting in 2 seconds..."));
-            relayController.allOff();
-            delay(2000);
-            ESP.restart();
-            break;
-            
-        case '\n':
-        case '\r':
-            break;
-
-        case 'm':
-        case 'M':
-            testChannelManager();
-            printMenu();
-            break; 
-            
-        case 'w':
-        case 'W':
-            testRTC();
-            printMenu();
-            break;
-
-        case 'd':
-        case 'D':
-            testScheduler();
-            printMenu();
-            break;
-
-            case 'y':
-        case 'Y':
-            gpioValidationEnabled = !gpioValidationEnabled;
-            Serial.printf("[CMD] GPIO Validation: %s\n", 
-                          gpioValidationEnabled ? "ENABLED" : "DISABLED");
-            break;
-
-        case 'z':
-        case 'Z': {
-            Serial.println(F("[CMD] GPIO Timing Measurement"));
-            Serial.print(F("      Enter channel (0-5): "));
-            
-            while (!Serial.available()) delay(10);
-            char chChar = Serial.read();
-            while (Serial.available()) Serial.read();
-            
-            uint8_t ch = chChar - '0';
-            if (ch < CHANNEL_COUNT) {
-                Serial.println(ch);
-                measureGpioTiming(ch);
-            } else {
-                Serial.println(F("Invalid channel"));
-            }
-            break;
-        }
-            
-        default:
-            Serial.printf("[?] Unknown command: '%c' (0x%02X). Press 'h' for help.\n", 
-                          cmd, cmd);
-            break;
-    }
-}
 
 // ============================================================================
 // TIMED PUMP TEST
@@ -998,6 +591,631 @@ void measureGpioTiming(uint8_t channel) {
 }
 
 // ============================================================================
+// CONFIG STRUCT SIZES
+// ============================================================================
+void printChannelConfigSize() {
+    Serial.println(F("[CONFIG] Structure sizes:"));
+    Serial.println(F("┌─────────────────────────────────────────┐"));
+    Serial.printf("│  ChannelConfig:      %3d bytes          │\n", sizeof(ChannelConfig));
+    Serial.printf("│  ChannelDailyState:  %3d bytes          │\n", sizeof(ChannelDailyState));
+    Serial.printf("│  SystemState:        %3d bytes          │\n", sizeof(SystemState));
+    Serial.printf("│  ErrorState:         %3d bytes          │\n", sizeof(ErrorState));
+    Serial.printf("│  FramHeader:         %3d bytes          │\n", sizeof(FramHeader));
+    Serial.printf("│  AuthData:           %3d bytes          │\n", sizeof(AuthData));
+    Serial.println(F("├─────────────────────────────────────────┤"));
+    Serial.printf("│  RelayState:         %3d bytes          │\n", sizeof(RelayState));
+    Serial.println(F("└─────────────────────────────────────────┘"));
+    Serial.println();
+}
+
+// ============================================================================
+// GLOBAL STATE
+// ============================================================================
+bool systemHalted = false;
+bool pumpGlobalEnabled = true;
+bool gpioValidationEnabled = GPIO_VALIDATION_DEFAULT;
+InitStatus initStatus;
+
+void printSystemInfo();
+// ============================================================================
+// FORWARD DECLARATIONS
+// ============================================================================
+#if ENABLE_CLI
+void printBanner();
+void printMenu();
+void processSerialCommand();
+void i2cScan();
+void printChannelConfigSize();
+void testTimedPump(uint8_t channel, uint32_t duration_ms);
+void testFRAM();
+void testChannelManager();
+void testRTC();
+void testScheduler();
+void measureGpioTiming(uint8_t channel);
+#endif
+
+// ============================================================================
+// INITIALIZATION FUNCTIONS
+// ============================================================================
+
+/**
+ * Inicjalizacja hardware: I2C, FRAM, RTC, Relay
+ */
+void initHardware() {
+    Serial.println(F("\n[INIT] === HARDWARE INIT ==="));
+    
+    // --- I2C ---
+    Serial.print(F("[INIT] I2C... "));
+    Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+    Wire.setClock(I2C_FREQUENCY);
+    initStatus.i2c_ok = true;  // Wire.begin() nie zwraca błędu
+    Serial.printf("OK (SDA=%d, SCL=%d)\n", I2C_SDA_PIN, I2C_SCL_PIN);
+    
+    // --- FRAM ---
+    Serial.print(F("[INIT] FRAM... "));
+    if (framController.begin()) {
+        initStatus.fram_ok = true;
+        Serial.println(F("OK"));
+    } else {
+        initStatus.fram_ok = false;
+        Serial.println(F("FAILED!"));
+    }
+    
+// --- RTC ---
+    Serial.print(F("[INIT] RTC... "));
+    if (rtcController.begin()) {
+        delay(50);  // Daj RTC chwilę na stabilizację
+        if (rtcController.isTimeValid()) {
+            initStatus.rtc_ok = true;
+            TimeInfo now = rtcController.getTime();
+            Serial.printf("OK (%04d-%02d-%02d %02d:%02d)\n", 
+                          now.year, now.month, now.day, now.hour, now.minute);
+        } else {
+            initStatus.rtc_ok = false;
+            Serial.println(F("INVALID TIME!"));
+        }
+    } else {
+        initStatus.rtc_ok = false;
+        Serial.println(F("FAILED!"));
+    }
+    
+    // --- Relay Controller ---
+    Serial.print(F("[INIT] Relays... "));
+    relayController.begin();
+    initStatus.relays_ok = true;  // begin() nie zwraca błędu
+    Serial.println(F("OK"));
+    
+    // --- GPIO Validator ---
+    Serial.print(F("[INIT] GPIO Validator... "));
+    gpioValidator.begin();
+    Serial.println(F("OK"));
+    
+    // --- Hardware summary ---
+    initStatus.critical_ok = initStatus.fram_ok && initStatus.rtc_ok;
+    
+    if (initStatus.isHardwareOk()) {
+        Serial.println(F("[INIT] Hardware: ALL OK"));
+    } else {
+        Serial.println(F("[INIT] Hardware: ERRORS DETECTED!"));
+        if (!initStatus.fram_ok) Serial.println(F("  - FRAM: CRITICAL!"));
+        if (!initStatus.rtc_ok)  Serial.println(F("  - RTC: CRITICAL!"));
+    }
+}
+
+/**
+ * Inicjalizacja sieci: WiFi, WebServer
+ */
+void initNetwork() {
+    Serial.println(F("\n[INIT] === NETWORK INIT ==="));
+    
+    // --- WiFi ---
+    Serial.print(F("[INIT] WiFi... "));
+    
+    // TODO: Docelowo credentials z FRAM/Captive Portal
+    WiFi.begin("KiG_2.4_IOT", "*qY4I@5&*%0lK1Q$U6UV7^S");
+    
+    uint32_t wifiStart = millis();
+    while (WiFi.status() != WL_CONNECTED) {
+        if (millis() - wifiStart > WIFI_CONNECT_TIMEOUT_MS) {
+            break;
+        }
+        delay(500);
+        Serial.print(".");
+    }
+    
+    if (WiFi.status() == WL_CONNECTED) {
+        initStatus.wifi_ok = true;
+        Serial.printf(" OK (%s)\n", WiFi.localIP().toString().c_str());
+    } else {
+        initStatus.wifi_ok = false;
+        Serial.println(F(" FAILED!"));
+    }
+    
+    // --- WebServer (only if WiFi OK) ---
+    if (initStatus.wifi_ok) {
+        Serial.print(F("[INIT] WebServer... "));
+        initWebServer();
+        initStatus.webserver_ok = true;
+        Serial.println(F("OK"));
+    } else {
+        initStatus.webserver_ok = false;
+        Serial.println(F("[INIT] WebServer: SKIPPED (no WiFi)"));
+    }
+    
+    // --- Network summary ---
+    if (initStatus.wifi_ok && initStatus.webserver_ok) {
+        Serial.println(F("[INIT] Network: ALL OK"));
+        Serial.printf("[INIT] Dashboard: http://%s/\n", WiFi.localIP().toString().c_str());
+    } else {
+        Serial.println(F("[INIT] Network: DEGRADED MODE"));
+        Serial.println(F("  - Dosing will work, but no remote access"));
+    }
+}
+
+/**
+ * Inicjalizacja aplikacji: ChannelManager, Scheduler
+ */
+void initApplication() {
+    Serial.println(F("\n[INIT] === APPLICATION INIT ==="));
+    
+    // --- Channel Manager (wymaga FRAM) ---
+    Serial.print(F("[INIT] Channel Manager... "));
+    if (initStatus.fram_ok) {
+        if (channelManager.begin()) {
+            initStatus.channel_manager_ok = true;
+            Serial.println(F("OK"));
+        } else {
+            initStatus.channel_manager_ok = false;
+            Serial.println(F("FAILED!"));
+        }
+    } else {
+        initStatus.channel_manager_ok = false;
+        Serial.println(F("SKIPPED (no FRAM)"));
+    }
+    
+    // --- Dosing Scheduler (wymaga RTC + ChannelManager) ---
+    Serial.print(F("[INIT] Scheduler... "));
+    if (initStatus.rtc_ok && initStatus.channel_manager_ok) {
+        if (dosingScheduler.begin()) {
+            initStatus.scheduler_ok = true;
+            Serial.println(F("OK"));
+        } else {
+            initStatus.scheduler_ok = false;
+            Serial.println(F("FAILED!"));
+        }
+    } else {
+        initStatus.scheduler_ok = false;
+        Serial.println(F("SKIPPED (missing dependencies)"));
+        if (!initStatus.rtc_ok) Serial.println(F("  - Requires: RTC"));
+        if (!initStatus.channel_manager_ok) Serial.println(F("  - Requires: Channel Manager"));
+    }
+    
+    // --- Application summary ---
+    if (initStatus.isApplicationOk()) {
+        Serial.println(F("[INIT] Application: ALL OK"));
+    } else {
+        Serial.println(F("[INIT] Application: ERRORS!"));
+        Serial.println(F("  - Dosing may not work correctly"));
+    }
+    
+    // --- Final system status ---
+    initStatus.system_ready = initStatus.isHardwareOk() && initStatus.isApplicationOk();
+    
+    Serial.println(F("\n[INIT] =============================="));
+    if (initStatus.system_ready) {
+        Serial.println(F("[INIT] SYSTEM READY"));
+    } else {
+        Serial.println(F("[INIT] SYSTEM DEGRADED"));
+        systemHalted = !initStatus.critical_ok;
+        if (systemHalted) {
+            Serial.println(F("[INIT] CRITICAL ERROR - SYSTEM HALTED!"));
+        }
+    }
+    Serial.println(F("[INIT] ==============================\n"));
+}
+
+// ============================================================================
+// SETUP
+// ============================================================================
+
+void setup() {
+    // Initialize Serial
+    Serial.begin(SERIAL_BAUD_RATE);
+    
+    // Wait for Serial (USB CDC)
+    uint32_t startWait = millis();
+    while (!Serial && (millis() - startWait < 3000)) {
+        delay(10);
+    }
+    delay(500);
+    
+    // Reset init status
+    initStatus.reset();
+    
+    #if ENABLE_CLI
+    printBanner();
+    #endif
+    
+    // === INITIALIZATION SEQUENCE ===
+    initHardware();
+    initNetwork();
+    initApplication();
+    
+    // === POST-INIT ===
+    #if ENABLE_CLI
+    i2cScan();
+    printMenu();
+    #endif
+
+// === WATCHDOG TIMER (production only) ===
+    #if !ENABLE_CLI
+    Serial.print(F("[INIT] Watchdog Timer... "));
+    if (esp_task_wdt_add(NULL) == ESP_OK) {
+        Serial.println(F("OK (subscribed to default WDT)"));
+    } else {
+        Serial.println(F("SKIPPED"));
+    }
+    #else
+    Serial.println(F("[INIT] Watchdog Timer... DISABLED (debug mode)"));
+    #endif
+    
+    // Final status
+    if (initStatus.system_ready) {
+        Serial.println(F("[MAIN] Entering main loop..."));
+    } else if (systemHalted) {
+        Serial.println(F("[MAIN] System halted - check errors above"));
+    } else {
+        Serial.println(F("[MAIN] Running in degraded mode"));
+    }
+}
+
+// ============================================================================
+// LOOP
+// ============================================================================
+// ============================================================================
+// LOOP
+// ============================================================================
+void loop() {
+    // === CRITICAL: Always update relay (safety) ===
+    relayController.update();
+
+ 
+    // === FEED WATCHDOG (if subscribed) ===
+    static bool wdtSubscribed = false;
+    static bool wdtChecked = false;
+    if (!wdtChecked) {
+        wdtSubscribed = (esp_task_wdt_status(NULL) == ESP_OK);
+        wdtChecked = true;
+    }
+    if (wdtSubscribed) {
+        // === FEED WATCHDOG (production only) ===
+        #if !ENABLE_CLI
+            esp_task_wdt_reset();
+        #endif
+    }
+    
+    // === Skip processing if system halted ===
+    if (systemHalted) {
+        static uint32_t lastHaltMsg = 0;
+        if (millis() - lastHaltMsg > 30000) {  // Co 30s przypomnienie
+            lastHaltMsg = millis();
+            Serial.println(F("[MAIN] System HALTED - restart required"));
+        }
+        delay(100);
+        return;
+    }
+    
+    // === Normal operation ===
+    
+    // Update GPIO validator
+    gpioValidator.update();
+    
+    // Update scheduler (main dosing logic)
+    if (initStatus.scheduler_ok) {
+        dosingScheduler.update();
+    }
+    
+    // === CLI (debug only) ===
+    #if ENABLE_CLI
+    if (Serial.available()) {
+        processSerialCommand();
+    }
+    
+    // Show pump status when running
+    static uint32_t lastStatusPrint = 0;
+    if (relayController.isAnyOn() && (millis() - lastStatusPrint > 1000)) {
+        lastStatusPrint = millis();
+        uint8_t ch = relayController.getActiveChannel();
+        uint32_t runtime = relayController.getActiveRuntime();
+        uint32_t remaining = relayController.getRemainingTime();
+        Serial.printf("[STATUS] CH%d running: %lu ms (remaining: %lu ms)\n",
+                      ch, runtime, remaining);
+    }
+    #endif
+    
+    // === Heartbeat (production) ===
+    #if !ENABLE_CLI
+    static uint32_t lastHeartbeat = 0;
+    if (millis() - lastHeartbeat > 60000) {  // Co 1 minutę
+        lastHeartbeat = millis();
+        Serial.printf("[HEARTBEAT] Uptime: %lu min, Scheduler: %s\n",
+                      millis() / 60000,
+                      dosingScheduler.isEnabled() ? "ON" : "OFF");
+    }
+    #endif
+    
+    delay(10);
+}
+
+// ============================================================================
+// BANNER & MENU
+// ============================================================================
+void printBanner() {
+    Serial.println();
+    Serial.println(F("╔═══════════════════════════════════════════════════════════════╗"));
+    Serial.println(F("║          DOZOWNIK - Automatic Fertilizer Dosing System        ║"));
+    Serial.println(F("║                    FAZA 2 - Controller Test                   ║"));
+    Serial.println(F("╠═══════════════════════════════════════════════════════════════╣"));
+    Serial.printf("║  Firmware: %-20s  Channels: %-14d  ║\n", FIRMWARE_VERSION, CHANNEL_COUNT);
+    Serial.printf("║  Device:   %-20s  Build: %s %-5s  ║\n", DEVICE_ID, __DATE__, "");
+    Serial.println(F("╚═══════════════════════════════════════════════════════════════╝"));
+    Serial.println();
+}
+
+void printMenu() {
+    Serial.println(F("┌─────────────────────────────────────────────────────────────────┐"));
+    Serial.println(F("│                    FAZA 2 - CONTROLLER TEST                     │"));
+    Serial.println(F("├─────────────────────────────────────────────────────────────────┤"));
+    Serial.println(F("│  RELAY CONTROLLER:                                              │"));
+    Serial.println(F("│    0-5   Toggle relay CH0-CH5 (with mutex)                      │"));
+    Serial.println(F("│    t     Timed pump test (3s on selected channel)               │"));
+    Serial.println(F("│    a     All relays ON (blocked by mutex!)                      │"));
+    Serial.println(F("│    o     All relays OFF (emergency stop)                        │"));
+    Serial.println(F("│    p     Print relay status                                     │"));
+    Serial.println(F("├─────────────────────────────────────────────────────────────────┤"));
+    Serial.println(F("│  GPIO VALIDATOR:                                                │"));
+    Serial.println(F("│    g     Read all GPIO states                                   │"));
+    Serial.println(F("│    v     Run validation on active channel                       │"));
+    Serial.println(F("├─────────────────────────────────────────────────────────────────┤"));
+    Serial.println(F("│  SYSTEM:                                                        │"));
+    Serial.println(F("│    i     I2C scan                                               │"));
+    Serial.println(F("│    s     System info                                            │"));
+    Serial.println(F("│    c     Config struct sizes                                    │"));
+    Serial.println(F("│    h     This help menu                                         │"));
+    Serial.println(F("│    e     Toggle emergency halt                                  │"));
+    Serial.println(F("│    x     Reboot                                                 │"));
+    Serial.println(F("│    f     FRAM test (read all sections)                          │"));
+    Serial.println(F("│    r     Factory reset FRAM                                     │"));
+    Serial.println(F("│    m     Channel Manager test menu                              │"));
+    Serial.println(F("│    w     RTC test menu (time/date)                              │"));
+    Serial.println(F("│    d     Dosing scheduler test menu                             │"));
+    Serial.println(F("│    y     Toggle GPIO validation                                 │"));
+    Serial.println(F("│    z     Measure GPIO relay->validate timing                    │"));
+    Serial.println(F("└─────────────────────────────────────────────────────────────────┘"));
+    Serial.println();
+}
+
+// ============================================================================
+// SERIAL COMMAND PROCESSOR
+// ============================================================================
+void processSerialCommand() {
+    char cmd = Serial.read();
+    
+    // Flush remaining input
+    while (Serial.available()) Serial.read();
+    
+    Serial.println();
+    
+    switch (cmd) {
+        // --- Relay commands ---
+        case '0': case '1': case '2': case '3': case '4': case '5': {
+            uint8_t ch = cmd - '0';
+            if (ch < CHANNEL_COUNT) {
+                if (relayController.isChannelOn(ch)) {
+                    RelayResult res = relayController.turnOff(ch);
+                    Serial.printf("[CMD] CH%d OFF -> %s\n", ch, 
+                                  RelayController::resultToString(res));
+                } else {
+                    RelayResult res = relayController.turnOn(ch, 3000); // 30s max
+                    Serial.printf("[CMD] CH%d ON (30s max) -> %s\n", ch,
+                                  RelayController::resultToString(res));
+                }
+            }
+            break;
+        }
+        
+        case 't':
+        case 'T': {
+            Serial.println(F("[CMD] Timed pump test"));
+            Serial.print(F("      Enter channel (0-5): "));
+            
+            // Wait for input
+            while (!Serial.available()) delay(10);
+            char chChar = Serial.read();
+            while (Serial.available()) Serial.read();
+            
+            uint8_t ch = chChar - '0';
+            if (ch < CHANNEL_COUNT) {
+                Serial.printf("%d\n", ch);
+                testTimedPump(ch, 3000); // 3 second test
+            } else {
+                Serial.println(F("Invalid channel"));
+            }
+            break;
+        }
+        
+        case 'a':
+        case 'A':
+            Serial.println(F("[CMD] Trying to turn ALL ON (mutex should block)"));
+            for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
+                RelayResult res = relayController.turnOn(i, 5000);
+                Serial.printf("       CH%d -> %s\n", i, 
+                              RelayController::resultToString(res));
+            }
+            break;
+            
+        case 'o':
+        case 'O':
+            Serial.println(F("[CMD] All OFF"));
+            relayController.allOff();
+            break;
+            
+        case 'p':
+        case 'P':
+            relayController.printStatus();
+            break;
+            
+        // --- GPIO commands ---
+        case 'g':
+        case 'G':
+            gpioValidator.printAllGpio();
+            break;
+            
+        case 'v':
+        case 'V': {
+            uint8_t active = relayController.getActiveChannel();
+            if (active < CHANNEL_COUNT) {
+                Serial.printf("[CMD] Starting validation for CH%d\n", active);
+                gpioValidator.startValidation(active);
+                
+                // Wait for result
+                while (gpioValidator.isValidating()) {
+                    gpioValidator.update();
+                    delay(100);
+                }
+                
+                ValidationResult res = gpioValidator.getLastResult();
+                Serial.printf("[CMD] Validation result: %s\n",
+                              GpioValidator::resultToString(res));
+            } else {
+                Serial.println(F("[CMD] No pump active - turn one on first"));
+            }
+            break;
+        }
+
+        case 'f':
+        case 'F':
+            testFRAM();
+            break;
+            
+        case 'r':
+        case 'R': {
+            Serial.println(F("[CMD] Factory reset FRAM? (y/n): "));
+            while (!Serial.available()) delay(10);
+            char confirm = Serial.read();
+            while (Serial.available()) Serial.read();
+            
+            if (confirm == 'y' || confirm == 'Y') {
+                Serial.println(F("[CMD] Resetting FRAM..."));
+                if (framController.factoryReset()) {
+                    Serial.println(F("[CMD] Factory reset complete"));
+                } else {
+                    Serial.println(F("[CMD] Factory reset FAILED!"));
+                }
+            } else {
+                Serial.println(F("[CMD] Cancelled"));
+            }
+            break;
+        }
+            
+        // --- System commands ---
+        case 'i':
+        case 'I':
+            i2cScan();
+            break;
+            
+        case 's':
+        case 'S':
+            printSystemInfo();
+            break;
+            
+        case 'c':
+        case 'C':
+            printChannelConfigSize();
+            break;
+            
+        case 'e':
+        case 'E':
+            systemHalted = !systemHalted;
+            Serial.printf("[CMD] System halt: %s\n", 
+                          systemHalted ? "ENABLED (pumps blocked)" : "DISABLED");
+            if (systemHalted) {
+                relayController.allOff();
+            }
+            break;
+            
+        case 'h':
+        case 'H':
+        case '?':
+            printMenu();
+            break;
+            
+        case 'x':
+        case 'X':
+            Serial.println(F("[REBOOT] Restarting in 2 seconds..."));
+            relayController.allOff();
+            delay(2000);
+            ESP.restart();
+            break;
+            
+        case '\n':
+        case '\r':
+            break;
+
+        case 'm':
+        case 'M':
+            testChannelManager();
+            printMenu();
+            break; 
+            
+        case 'w':
+        case 'W':
+            testRTC();
+            printMenu();
+            break;
+
+        case 'd':
+        case 'D':
+            testScheduler();
+            printMenu();
+            break;
+
+            case 'y':
+        case 'Y':
+            gpioValidationEnabled = !gpioValidationEnabled;
+            Serial.printf("[CMD] GPIO Validation: %s\n", 
+                          gpioValidationEnabled ? "ENABLED" : "DISABLED");
+            break;
+
+        case 'z':
+        case 'Z': {
+            Serial.println(F("[CMD] GPIO Timing Measurement"));
+            Serial.print(F("      Enter channel (0-5): "));
+            
+            while (!Serial.available()) delay(10);
+            char chChar = Serial.read();
+            while (Serial.available()) Serial.read();
+            
+            uint8_t ch = chChar - '0';
+            if (ch < CHANNEL_COUNT) {
+                Serial.println(ch);
+                measureGpioTiming(ch);
+            } else {
+                Serial.println(F("Invalid channel"));
+            }
+            break;
+        }
+            
+        default:
+            Serial.printf("[?] Unknown command: '%c' (0x%02X). Press 'h' for help.\n", 
+                          cmd, cmd);
+            break;
+    }
+}
+
+
+
+// ============================================================================
 // SYSTEM INFO
 // ============================================================================
 void printSystemInfo() {
@@ -1017,20 +1235,3 @@ void printSystemInfo() {
     Serial.println();
 }
 
-// ============================================================================
-// CONFIG STRUCT SIZES
-// ============================================================================
-void printChannelConfigSize() {
-    Serial.println(F("[CONFIG] Structure sizes:"));
-    Serial.println(F("┌─────────────────────────────────────────┐"));
-    Serial.printf("│  ChannelConfig:      %3d bytes          │\n", sizeof(ChannelConfig));
-    Serial.printf("│  ChannelDailyState:  %3d bytes          │\n", sizeof(ChannelDailyState));
-    Serial.printf("│  SystemState:        %3d bytes          │\n", sizeof(SystemState));
-    Serial.printf("│  ErrorState:         %3d bytes          │\n", sizeof(ErrorState));
-    Serial.printf("│  FramHeader:         %3d bytes          │\n", sizeof(FramHeader));
-    Serial.printf("│  AuthData:           %3d bytes          │\n", sizeof(AuthData));
-    Serial.println(F("├─────────────────────────────────────────┤"));
-    Serial.printf("│  RelayState:         %3d bytes          │\n", sizeof(RelayState));
-    Serial.println(F("└─────────────────────────────────────────┘"));
-    Serial.println();
-}

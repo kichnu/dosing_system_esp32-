@@ -72,6 +72,7 @@ static const uint8_t VALIDATE_PINS[6] = {
 #define FIRST_EVENT_HOUR            1       // Pierwsza godzina eventów
 #define LAST_EVENT_HOUR             23      // Ostatnia godzina eventów
 #define RESERVED_HOUR               0       // 00:xx zarezerwowane na reset+VPS
+#define WDT_TIMEOUT_SECONDS         30
 
 // Offsety czasowe kanałów (w minutach)
 #define CHANNEL_OFFSET_MINUTES      10      // CH0=:00, CH1=:10, CH2=:20...
@@ -183,9 +184,69 @@ inline uint8_t popcount32(uint32_t n) {
     return count;
 }
 
-
-
 #define ENABLE_SERIAL_DEBUG     true
 #define ENABLE_FULL_LOGGING     true
+
+// ============================================================================
+// INITIALIZATION STATUS
+// ============================================================================
+
+/**
+ * Status inicjalizacji komponentów systemu
+ */
+struct InitStatus {
+    // Hardware
+    bool i2c_ok;
+    bool fram_ok;
+    bool rtc_ok;
+    bool relays_ok;
+    
+    // Network
+    bool wifi_ok;
+    bool webserver_ok;
+    
+    // Application
+    bool channel_manager_ok;
+    bool scheduler_ok;
+    
+    // Overall
+    bool critical_ok;       // Czy komponenty krytyczne działają
+    bool system_ready;      // Czy system gotowy do pracy
+    
+    /**
+     * Sprawdź czy hardware krytyczny OK
+     */
+    bool isHardwareOk() const {
+        return i2c_ok && fram_ok && rtc_ok && relays_ok;
+    }
+    
+    /**
+     * Sprawdź czy aplikacja OK
+     */
+    bool isApplicationOk() const {
+        return channel_manager_ok && scheduler_ok;
+    }
+    
+    /**
+     * Reset do wartości domyślnych
+     */
+    void reset() {
+        i2c_ok = false;
+        fram_ok = false;
+        rtc_ok = false;
+        relays_ok = false;
+        wifi_ok = false;
+        webserver_ok = false;
+        channel_manager_ok = false;
+        scheduler_ok = false;
+        critical_ok = false;
+        system_ready = false;
+    }
+};
+
+/**
+ * Globalny status inicjalizacji
+ */
+extern InitStatus initStatus;
 
 #endif // CONFIG_H
