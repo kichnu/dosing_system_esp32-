@@ -5,6 +5,8 @@
  */
 
 #include "rtc_controller.h"
+#include <WiFi.h>
+#include <time.h>
 
 // Global instance
 RtcController rtcController;
@@ -129,6 +131,11 @@ bool RtcController::begin() {
     // Read current time for midnight detection
     TimeInfo now = getTime();
     _lastDay = now.day;
+
+    // Initialize NTP tracking
+    _ntpSynced = false;
+    _lastNtpSyncTime = 0;
+    _lastNtpSyncTimestamp = 0;
     
     _initialized = true;
     
@@ -347,4 +354,80 @@ uint8_t RtcController::_calcDayOfWeek(uint16_t year, uint8_t month, uint8_t day)
     
     // Convert from Zeller (Sat=0) to ISO (Mon=0)
     return (h + 5) % 7;
+}
+
+// ============================================================================
+// NTP SYNC WITH RETRY
+// ============================================================================
+
+bool RtcController::syncNTPWithRetry() {
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println(F("[RTC] NTP sync skipped - WiFi not connected"));
+        return false;
+    }
+    
+    Serial.println(F("[RTC] Starting NTP synchronization..."));
+    Serial.printf("[RTC] Servers: %s, %s, %s\n", NTP_SERVER_1, NTP_SERVER_2, NTP_SERVER_3);
+    
+    // Configure NTP with multiple servers
+    configTime(NTP_GMT_OFFSET_SEC, NTP_DAYLIGHT_OFFSET_SEC, 
+               NTP_SERVER_1, NTP_SERVER_2, NTP_SERVER_3);
+    
+    // Wait for valid time with timeout
+    uint32_t startMs = millis();
+    time_t now = 0;
+    struct tm timeinfo;
+    int attempts = 0;
+    int maxAttempts = NTP_SYNC_TIMEOUT_MS / NTP_SYNC_RETRY_DELAY_MS;
+    
+    while (attempts < maxAttempts) {
+        time(&now);
+        
+        // Check if timestamp is valid (after 2024)
+        if (now > 1704067200) {  // 2024-01-01 00:00:00 UTC
+            localtime_r(&now, &timeinfo);
+            
+            // Additional sanity check
+            if (timeinfo.tm_year + 1900 >= NTP_MIN_VALID_YEAR) {
+                // Success! Set RTC
+                if (setUnixTime((uint32_t)now)) {
+                    _ntpSynced = true;
+                    _lastNtpSyncTime = millis();
+                    _lastNtpSyncTimestamp = (uint32_t)now;
+                    
+                    Serial.printf("[RTC] NTP sync OK in %lu ms\n", millis() - startMs);
+                    Serial.printf("[RTC] UTC: %04d-%02d-%02d %02d:%02d:%02d\n",
+                                  timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+                                  timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+                    
+                    return true;
+                }
+            }
+        }
+        
+        delay(NTP_SYNC_RETRY_DELAY_MS);
+        attempts++;
+        
+        // Progress log every 5 seconds
+        if (attempts % 10 == 0) {
+            Serial.printf("[RTC] NTP waiting... (%d/%d)\n", attempts, maxAttempts);
+        }
+    }
+    
+    Serial.printf("[RTC] NTP sync FAILED after %lu ms\n", millis() - startMs);
+    return false;
+}
+
+bool RtcController::needsResync() const {
+    // Never synced - needs sync
+    if (!_ntpSynced) {
+        return true;
+    }
+    
+    // Check if interval passed
+    if (millis() - _lastNtpSyncTime > NTP_RESYNC_INTERVAL_MS) {
+        return true;
+    }
+    
+    return false;
 }

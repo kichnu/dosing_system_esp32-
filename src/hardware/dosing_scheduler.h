@@ -15,6 +15,7 @@
 #include "relay_controller.h"
 #include "rtc_controller.h"
 #include "fram_controller.h"
+#include "gpio_validator.h"
 
 // ============================================================================
 // SCHEDULER STATE
@@ -24,6 +25,7 @@ enum class SchedulerState : uint8_t {
     IDLE,               // Oczekiwanie
     CHECKING,           // Sprawdzanie harmonogramu
     DOSING,             // Dozowanie w trakcie
+    VALIDATING,         // Walidacja GPIO w trakcie  <-- DODAJ
     WAITING_PUMP,       // Czekanie na zakończenie pompy
     DAILY_RESET,        // Reset dobowy w trakcie
     ERROR,              // Błąd
@@ -42,6 +44,8 @@ struct DosingEvent {
     uint32_t start_time_ms;
     bool     completed;
     bool     failed;
+    bool     gpio_validated;
+    bool     validation_started;
 };
 
 // ============================================================================

@@ -118,6 +118,27 @@ public:
     bool syncNTP(const char* ntpServer = "pool.ntp.org", long gmtOffset = 0);
     
     // --- Utility ---
+
+        /**
+     * Synchronizuj z NTP z retry i wieloma serwerami
+     * @return true jeśli synchronizacja udana
+     */
+    bool syncNTPWithRetry();
+    
+    /**
+     * Czy potrzebna resynchronizacja (minął interwał)
+     */
+    bool needsResync() const;
+    
+    /**
+     * Czy NTP było zsynchronizowane od startu
+     */
+    bool isNtpSynced() const { return _ntpSynced; }
+    
+    /**
+     * Pobierz czas ostatniej synchronizacji NTP (millis)
+     */
+    uint32_t getLastNtpSyncTime() const { return _lastNtpSyncTime; }
     
     /**
      * Odczytaj temperaturę z DS3231 (ma wbudowany sensor)
@@ -138,6 +159,10 @@ private:
     bool _initialized;
     bool _timeValid;
     uint8_t _lastDay;  // Do detekcji północy
+     // NTP sync tracking
+    bool _ntpSynced;                // Czy udana sync od startu
+    uint32_t _lastNtpSyncTime;      // millis() ostatniej sync
+    uint32_t _lastNtpSyncTimestamp; // Unix timestamp ostatniej sync
     
     /**
      * Odczyt rejestru RTC

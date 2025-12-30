@@ -21,6 +21,11 @@
 #include <WiFi.h>
 #include <esp_task_wdt.h>
 
+#include "provisioning/prov_detector.h"
+#include "provisioning/ap_core.h"
+#include "provisioning/ap_server.h"
+#include "config/credentials_manager.h"
+
 
 
 
@@ -432,15 +437,28 @@ void testScheduler() {
                         Serial.println(F("Manual dose started!"));
                         
                         // Wait and show progress
-                        while (dosingScheduler.getState() == SchedulerState::DOSING ||
-                               dosingScheduler.getState() == SchedulerState::WAITING_PUMP) {
+                        SchedulerState state;
+                        while ((state = dosingScheduler.getState()) == SchedulerState::VALIDATING ||
+                               state == SchedulerState::DOSING ||
+                               state == SchedulerState::WAITING_PUMP) {
                             dosingScheduler.update();
                             relayController.update();
-                            delay(500);
-                            Serial.printf("  Pump running: %lu ms\n", 
-                                          relayController.getActiveRuntime());
+                            gpioValidator.update();
+                            
+                            if (state == SchedulerState::VALIDATING) {
+                                Serial.println(F("  Validating GPIO..."));
+                            } else if (relayController.isAnyOn()) {
+                                Serial.printf("  Pump running: %lu ms\n", 
+                                              relayController.getActiveRuntime());
+                            }
+                            delay(100);  // Faster update for validation
                         }
-                        Serial.println(F("Dose complete!"));
+                        
+                        if (dosingScheduler.getCurrentEvent().failed) {
+                            Serial.println(F("Dose FAILED!"));
+                        } else {
+                            Serial.println(F("Dose complete!"));
+                        }
                     } else {
                         Serial.println(F("Failed to start dose"));
                     }
@@ -661,6 +679,17 @@ void initHardware() {
         Serial.println(F("FAILED!"));
     }
     
+        // --- Credentials ---
+    Serial.print(F("[INIT] Credentials... "));
+    if (initStatus.fram_ok) {
+        if (initCredentialsManager()) {
+            Serial.println(F("OK (from FRAM)"));
+        } else {
+            Serial.println(F("using fallback"));
+        }
+    } else {
+        Serial.println(F("SKIPPED (no FRAM)"));
+    }
 // --- RTC ---
     Serial.print(F("[INIT] RTC... "));
     if (rtcController.begin()) {
@@ -712,7 +741,17 @@ void initNetwork() {
     Serial.print(F("[INIT] WiFi... "));
     
     // TODO: Docelowo credentials z FRAM/Captive Portal
-    WiFi.begin("KiG_2.4_IOT", "*qY4I@5&*%0lK1Q$U6UV7^S");
+    // WiFi.begin("KiG_2.4_IOT", "*qY4I@5&*%0lK1Q$U6UV7^S");
+
+        // Use credentials from FRAM or fallback
+    const char* ssid = getWiFiSSID();
+    const char* password = getWiFiPassword();
+    
+    Serial.printf("connecting to %s (%s)... ", 
+                  ssid, 
+                  areCredentialsLoaded() ? "FRAM" : "fallback");
+    
+    WiFi.begin(ssid, password);
     
     uint32_t wifiStart = millis();
     while (WiFi.status() != WL_CONNECTED) {
@@ -789,6 +828,18 @@ void initApplication() {
         if (!initStatus.rtc_ok) Serial.println(F("  - Requires: RTC"));
         if (!initStatus.channel_manager_ok) Serial.println(F("  - Requires: Channel Manager"));
     }
+
+    // --- NTP Sync (wymaga WiFi + RTC) ---
+    if (initStatus.wifi_ok && initStatus.rtc_ok) {
+        Serial.print(F("[INIT] NTP Sync... "));
+        if (rtcController.syncNTPWithRetry()) {
+            Serial.println(F("OK"));
+        } else {
+            Serial.println(F("FAILED (will retry later)"));
+        }
+    } else {
+        Serial.println(F("[INIT] NTP Sync... SKIPPED (missing WiFi or RTC)"));
+    }
     
     // --- Application summary ---
     if (initStatus.isApplicationOk()) {
@@ -828,6 +879,35 @@ void setup() {
         delay(10);
     }
     delay(500);
+
+     // === CHECK PROVISIONING BUTTON (before any other init) ===
+    if (checkProvisioningButton()) {
+        Serial.println(F("\n"));
+        Serial.println(F("╔═══════════════════════════════════════╗"));
+        Serial.println(F("║     ENTERING PROVISIONING MODE        ║"));
+        Serial.println(F("╚═══════════════════════════════════════╝"));
+        
+        // Minimal init for provisioning
+        Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+        delay(100);
+        framController.begin();
+        
+        // Start AP + Web Server
+        if (startAccessPoint() && startDNSServer() && startWebServer()) {
+            Serial.println(F("[PROV] Configuration portal ready!"));
+            Serial.println(F("[PROV] Connect to WiFi: DOZOWNIK-SETUP"));
+            Serial.println(F("[PROV] Password: setup12345"));
+            Serial.println(F("[PROV] Open: http://192.168.4.1"));
+            
+            // Blocking loop - never returns
+            runProvisioningLoop();
+        } else {
+            Serial.println(F("[PROV] Failed to start provisioning!"));
+            Serial.println(F("[PROV] Rebooting in 5 seconds..."));
+            delay(5000);
+            ESP.restart();
+        }
+    }
     
     // Reset init status
     initStatus.reset();
@@ -908,7 +988,19 @@ void loop() {
     // === Normal operation ===
     
     // Update GPIO validator
+        // Update GPIO validator
     gpioValidator.update();
+    
+    // === NTP Resync (hourly) ===
+    static uint32_t lastNtpCheck = 0;
+    if (millis() - lastNtpCheck > 60000) {  // Check every minute
+        lastNtpCheck = millis();
+        
+        if (initStatus.wifi_ok && initStatus.rtc_ok && rtcController.needsResync()) {
+            Serial.println(F("[MAIN] NTP resync due..."));
+            rtcController.syncNTPWithRetry();
+        }
+    }
     
     // Update scheduler (main dosing logic)
     if (initStatus.scheduler_ok) {

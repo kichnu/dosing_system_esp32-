@@ -94,14 +94,13 @@ static const uint8_t VALIDATE_PINS[6] = {
 // GPIO VALIDATION
 // ============================================================================
 
-// temporary########################################################################################################
 #define GPIO_VALIDATION_DEFAULT     true    // Wartość startowa
 extern bool gpioValidationEnabled;  
 
 // #define GPIO_VALIDATION_ENABLED     false    // Globalne włączenie walidacji
-#define GPIO_CHECK_DELAY_MS         3    // Opóźnienie przed sprawdzeniem (2s)
+#define GPIO_CHECK_DELAY_MS         200    // Opóźnienie przed sprawdzeniem (2s)
 #define GPIO_DEBOUNCE_MS            1000    // Czas debounce (1s)
-#define GPIO_EXPECTED_STATE         HIGH    // Oczekiwany stan przy działającej pompie
+#define GPIO_EXPECTED_STATE         LOW    // Oczekiwany stan przy działającej pompie
 
 // ============================================================================
 // DOSING LIMITS
@@ -170,6 +169,25 @@ extern bool pumpGlobalEnabled;      // Globalne włączenie pomp
 #define BIT_CLEAR(mask, bit)    ((mask) &= ~(1UL << (bit)))
 #define BIT_CHECK(mask, bit)    (((mask) >> (bit)) & 1)
 #define BIT_TOGGLE(mask, bit)   ((mask) ^= (1UL << (bit)))
+
+// ============================================================================
+// NTP CONFIGURATION
+// ============================================================================
+
+// NTP servers (IP addresses - no DNS required)
+#define NTP_SERVER_1            "216.239.35.0"      // time.google.com
+#define NTP_SERVER_2            "216.239.35.4"      // time2.google.com
+#define NTP_SERVER_3            "162.159.200.1"     // time.cloudflare.com
+
+// Timezone (UTC for RTC storage, conversion in GUI if needed)
+#define NTP_GMT_OFFSET_SEC      0                   // RTC stores UTC
+#define NTP_DAYLIGHT_OFFSET_SEC 0                   // No DST for UTC
+
+// Sync settings
+#define NTP_SYNC_TIMEOUT_MS     20000               // 20 seconds max wait
+#define NTP_SYNC_RETRY_DELAY_MS 500                 // Delay between retries
+#define NTP_RESYNC_INTERVAL_MS  3600000             // Resync every 1 hour
+#define NTP_MIN_VALID_YEAR      2024                // Timestamp sanity check
 
 // Popcount (liczba ustawionych bitów)
 inline uint8_t popcount8(uint8_t n) {

@@ -86,10 +86,12 @@ void DosingScheduler::update() {
     
     uint32_t now = millis();
     
-    // Rate limit updates (every 1 second)
+// Rate limit updates (every 1 second)
     if (now - _lastUpdateTime < 1000) {
-        // But always check dosing progress if pump running
-        if (_state == SchedulerState::DOSING || _state == SchedulerState::WAITING_PUMP) {
+        // But always check dosing/validation progress if active
+        if (_state == SchedulerState::VALIDATING || 
+            _state == SchedulerState::DOSING || 
+            _state == SchedulerState::WAITING_PUMP) {
             _checkDosingProgress();
         }
         return;
@@ -114,6 +116,7 @@ void DosingScheduler::update() {
     }
     
     // Handle current state
+// Handle current state
     switch (_state) {
         case SchedulerState::IDLE:
         case SchedulerState::CHECKING:
@@ -128,16 +131,16 @@ void DosingScheduler::update() {
             _state = SchedulerState::CHECKING;
             _checkSchedule();
             
-            if (_state != SchedulerState::DOSING) {
+            if (_state != SchedulerState::DOSING && _state != SchedulerState::VALIDATING) {
                 _state = SchedulerState::IDLE;
             }
             break;
             
+        case SchedulerState::VALIDATING:
         case SchedulerState::DOSING:
         case SchedulerState::WAITING_PUMP:
             _checkDosingProgress();
             break;
-            
         case SchedulerState::DAILY_RESET:
             // Should not stay here
             _state = SchedulerState::IDLE;
@@ -327,6 +330,8 @@ bool DosingScheduler::_startDosing(uint8_t channel, uint8_t hour) {
     _currentEvent.start_time_ms = millis();
     _currentEvent.completed = false;
     _currentEvent.failed = false;
+    _currentEvent.gpio_validated = false;
+    _currentEvent.validation_started = false;
     
     Serial.printf("[SCHED] Starting CH%d: %.2f ml, %lu ms\n",
                   channel, _currentEvent.target_ml, _currentEvent.target_duration_ms);
@@ -341,7 +346,17 @@ bool DosingScheduler::_startDosing(uint8_t channel, uint8_t hour) {
         return false;
     }
     
-    _state = SchedulerState::DOSING;
+    // Start GPIO validation if enabled
+    if (gpioValidationEnabled) {
+        gpioValidator.startValidation(channel);
+        _currentEvent.validation_started = true;
+        _state = SchedulerState::VALIDATING;
+        Serial.printf("[SCHED] CH%d GPIO validation started\n", channel);
+    } else {
+        _currentEvent.gpio_validated = true;  // Skip validation
+        _state = SchedulerState::DOSING;
+    }
+    
     return true;
 }
 
@@ -351,6 +366,56 @@ void DosingScheduler::_checkDosingProgress() {
         return;
     }
     
+    // === Handle GPIO validation state ===
+    if (_state == SchedulerState::VALIDATING) {
+        ValidationResult valResult = gpioValidator.update();
+        
+        switch (valResult) {
+            case ValidationResult::OK:
+                Serial.printf("[SCHED] CH%d GPIO validation OK\n", _currentEvent.channel);
+                _currentEvent.gpio_validated = true;
+                _state = SchedulerState::DOSING;
+                break;
+                
+            case ValidationResult::PENDING:
+                // Still validating, continue waiting
+                break;
+                
+            case ValidationResult::SKIPPED:
+                // Validation disabled, continue dosing
+                _currentEvent.gpio_validated = true;
+                _state = SchedulerState::DOSING;
+                break;
+                
+            case ValidationResult::FAILED_NO_SIGNAL:
+            case ValidationResult::FAILED_WRONG_STATE:
+            case ValidationResult::FAILED_TIMEOUT:
+                // CRITICAL ERROR - stop pump immediately
+                Serial.printf("[SCHED] CH%d GPIO VALIDATION FAILED: %s\n", 
+                              _currentEvent.channel,
+                              GpioValidator::resultToString(valResult));
+                
+                relayController.turnOff(_currentEvent.channel);
+                _currentEvent.failed = true;
+                _currentEvent.gpio_validated = false;
+                
+                // Log error but don't halt system (allow other channels)
+                Serial.println(F("[SCHED] WARNING: Pump stopped due to GPIO validation failure!"));
+                
+                _completeDosing(false);
+                return;
+                
+            default:
+                break;
+        }
+        
+        // If still validating, don't proceed to pump check
+        if (_state == SchedulerState::VALIDATING) {
+            return;
+        }
+    }
+    
+    // === Handle dosing state ===
     // Check if pump still running
     if (!relayController.isChannelOn(_currentEvent.channel)) {
         // Pump stopped (timeout or manual)
@@ -482,6 +547,7 @@ const char* DosingScheduler::stateToString(SchedulerState state) {
     switch (state) {
         case SchedulerState::IDLE:        return "IDLE";
         case SchedulerState::CHECKING:    return "CHECKING";
+        case SchedulerState::VALIDATING:  return "VALIDATING";
         case SchedulerState::DOSING:      return "DOSING";
         case SchedulerState::WAITING_PUMP: return "WAITING_PUMP";
         case SchedulerState::DAILY_RESET: return "DAILY_RESET";

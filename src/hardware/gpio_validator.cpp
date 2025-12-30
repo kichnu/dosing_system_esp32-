@@ -117,10 +117,8 @@ ValidationResult GpioValidator::update() {
                         Serial.println(F("[GPIO_VAL] FAILED: Debounce timeout"));
                     }
                 } else {
-                    // Consistent read - validate
-                    bool expected = (GPIO_EXPECTED_STATE == LOW);
-                    
-                    if (finalRead == expected) {
+           
+                    if (finalRead == GPIO_EXPECTED_STATE) {
                         _lastResult = ValidationResult::OK;
                         _successCount++;
                         Serial.printf("[GPIO_VAL] CH%d OK (GPIO=%d)\n", 
@@ -128,8 +126,8 @@ ValidationResult GpioValidator::update() {
                     } else {
                         _lastResult = ValidationResult::FAILED_NO_SIGNAL;
                         _failCount++;
-                        Serial.printf("[GPIO_VAL] CH%d FAILED: expected=%d, got=%d\n",
-                                      _channel, expected, finalRead);
+                        Serial.printf("[GPIO_VAL] CH%d FAILED (GPIO=%d)\n",
+                                      _channel, finalRead);
                     }
                     _state = State::COMPLETE;
                 }
