@@ -435,18 +435,21 @@ void DosingScheduler::_completeDosing(bool success) {
                   success ? "OK" : "FAILED",
                   actualDuration);
     
+    // ALWAYS mark event as done to prevent retry loop
+    // Even failed events should not be retried in the same hour window
+    channelManager.markEventCompleted(
+        _currentEvent.channel, 
+        _currentEvent.hour,
+        success ? _currentEvent.target_ml : 0.0f  // Log 0 ml if failed
+    );
+    
     if (success) {
-        // Mark event completed
-        channelManager.markEventCompleted(
-            _currentEvent.channel, 
-            _currentEvent.hour,
-            _currentEvent.target_ml
-        );
-        
         _todayEventCount++;
         _currentEvent.completed = true;
     } else {
         _currentEvent.failed = true;
+        Serial.printf("[SCHED] WARNING: CH%d event marked done despite failure (no retry)\n",
+                      _currentEvent.channel);
     }
     
     // Clear event

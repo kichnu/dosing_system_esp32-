@@ -99,8 +99,8 @@ extern bool gpioValidationEnabled;
 
 // #define GPIO_VALIDATION_ENABLED     false    // Globalne włączenie walidacji
 #define GPIO_CHECK_DELAY_MS         200    // Opóźnienie przed sprawdzeniem (2s)
-#define GPIO_DEBOUNCE_MS            1000    // Czas debounce (1s)
-#define GPIO_EXPECTED_STATE         LOW    // Oczekiwany stan przy działającej pompie
+#define GPIO_DEBOUNCE_MS            3    // Czas debounce (1s)
+#define GPIO_EXPECTED_STATE         HIGH    // Oczekiwany stan przy działającej pompie
 
 // ============================================================================
 // DOSING LIMITS

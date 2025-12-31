@@ -3,6 +3,8 @@
  * 
  * Mapa adresów pamięci FRAM MB85RC256V (32 kB).
  * Wszystkie struktury wyrównane do 16 bajtów dla łatwiejszego debugowania.
+ * 
+ * UWAGA: Sekcja CREDENTIALS kompatybilna z projektem DOLEWKA (1024 B)
  */
 
 #ifndef FRAM_LAYOUT_H
@@ -22,24 +24,24 @@
 // MAGIC NUMBERS & VERSION
 // ============================================================================
 #define FRAM_MAGIC_NUMBER       0x444F5A41  // "DOZA" in ASCII
-#define FRAM_LAYOUT_VERSION     1
+#define FRAM_LAYOUT_VERSION     2           // Bumped for new layout
 
 // ============================================================================
-// MEMORY MAP
+// MEMORY MAP (v2 - compatible with DOLEWKA credentials)
 // ============================================================================
 // Sekcja          | Adres      | Rozmiar   | Opis
 // ----------------|------------|-----------|----------------------------------
 // HEADER          | 0x0000     | 32 B      | Magic, version, checksum
-// CREDENTIALS     | 0x0020     | 480 B     | Encrypted WiFi/VPS credentials
-// SYSTEM_STATE    | 0x0200     | 32 B      | Globalny stan systemu
-// ACTIVE_CONFIG   | 0x0220     | 192 B     | Aktywna konfiguracja (6 × 32 B)
-// PENDING_CONFIG  | 0x02E0     | 192 B     | Oczekująca konfiguracja (6 × 32 B)
-// DAILY_STATE     | 0x03A0     | 96 B      | Stan dzienny (6 × 16 B)
-// ERROR_STATE     | 0x0400     | 16 B      | Stan błędu krytycznego
-// AUTH_DATA       | 0x0410     | 64 B      | Hash hasła admin + salt
-// SESSION_DATA    | 0x0450     | 128 B     | Dane sesji
-// VPS_LOG_BUFFER  | 0x04D0     | 256 B     | Bufor logu VPS (retry)
-// RESERVED        | 0x05D0     | ...       | Zarezerwowane na przyszłość
+// CREDENTIALS     | 0x0020     | 1024 B    | Encrypted WiFi/VPS (DOLEWKA compatible)
+// SYSTEM_STATE    | 0x0420     | 32 B      | Globalny stan systemu
+// ACTIVE_CONFIG   | 0x0440     | 192 B     | Aktywna konfiguracja (6 × 32 B)
+// PENDING_CONFIG  | 0x0500     | 192 B     | Oczekująca konfiguracja (6 × 32 B)
+// DAILY_STATE     | 0x05C0     | 96 B      | Stan dzienny (6 × 16 B)
+// ERROR_STATE     | 0x0620     | 16 B      | Stan błędu krytycznego
+// AUTH_DATA       | 0x0630     | 64 B      | Hash hasła admin + salt
+// SESSION_DATA    | 0x0670     | 128 B     | Dane sesji
+// VPS_LOG_BUFFER  | 0x06F0     | 256 B     | Bufor logu VPS (retry)
+// RESERVED        | 0x07F0     | ...       | Zarezerwowane na przyszłość
 // ============================================================================
 
 // ----------------------------------------------------------------------------
@@ -66,63 +68,63 @@ struct FramHeader {
 static_assert(sizeof(FramHeader) == FRAM_SIZE_HEADER, "FramHeader size mismatch");
 
 // ----------------------------------------------------------------------------
-// CREDENTIALS SECTION (0x0020 - 0x01FF)
-// Kompatybilne z bazowym projektem dolewki
+// CREDENTIALS SECTION (0x0020 - 0x041F)
+// Kompatybilne z projektem DOLEWKA - NIE ZMIENIAĆ ROZMIARU!
 // ----------------------------------------------------------------------------
 #define FRAM_ADDR_CREDENTIALS       0x0020
-#define FRAM_SIZE_CREDENTIALS       480
+#define FRAM_SIZE_CREDENTIALS       1024
 
-// Struktura credentials zdefiniowana w credentials_manager.h (z bazowego projektu)
+// Struktura credentials zdefiniowana w fram_encryption.h
 
 // ----------------------------------------------------------------------------
-// SYSTEM STATE (0x0200 - 0x021F)
+// SYSTEM STATE (0x0420 - 0x043F)
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_SYSTEM_STATE      0x0200
+#define FRAM_ADDR_SYSTEM_STATE      0x0420
 #define FRAM_SIZE_SYSTEM_STATE      32
 
 // Używa struct SystemState z dosing_types.h
 
 // ----------------------------------------------------------------------------
-// ACTIVE CONFIG (0x0220 - 0x02DF)
+// ACTIVE CONFIG (0x0440 - 0x04FF)
 // Obecnie działająca konfiguracja kanałów
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_ACTIVE_CONFIG     0x0220
+#define FRAM_ADDR_ACTIVE_CONFIG     0x0440
 #define FRAM_SIZE_ACTIVE_CONFIG     (CHANNEL_COUNT * sizeof(ChannelConfig))
 
 // Makro do obliczenia adresu kanału
 #define FRAM_ADDR_ACTIVE_CH(n)      (FRAM_ADDR_ACTIVE_CONFIG + ((n) * sizeof(ChannelConfig)))
 
 // ----------------------------------------------------------------------------
-// PENDING CONFIG (0x02E0 - 0x039F)
+// PENDING CONFIG (0x0500 - 0x05BF)
 // Konfiguracja oczekująca na aktywację (od następnej doby)
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_PENDING_CONFIG    0x02E0
+#define FRAM_ADDR_PENDING_CONFIG    0x0500
 #define FRAM_SIZE_PENDING_CONFIG    (CHANNEL_COUNT * sizeof(ChannelConfig))
 
 #define FRAM_ADDR_PENDING_CH(n)     (FRAM_ADDR_PENDING_CONFIG + ((n) * sizeof(ChannelConfig)))
 
 // ----------------------------------------------------------------------------
-// DAILY STATE (0x03A0 - 0x03FF)
+// DAILY STATE (0x05C0 - 0x061F)
 // Stan dzienny kanałów - resetowany o północy
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_DAILY_STATE       0x03A0
+#define FRAM_ADDR_DAILY_STATE       0x05C0
 #define FRAM_SIZE_DAILY_STATE       (CHANNEL_COUNT * sizeof(ChannelDailyState))
 
 #define FRAM_ADDR_DAILY_CH(n)       (FRAM_ADDR_DAILY_STATE + ((n) * sizeof(ChannelDailyState)))
 
 // ----------------------------------------------------------------------------
-// ERROR STATE (0x0400 - 0x040F)
+// ERROR STATE (0x0620 - 0x062F)
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_ERROR_STATE       0x0400
+#define FRAM_ADDR_ERROR_STATE       0x0620
 #define FRAM_SIZE_ERROR_STATE       16
 
 // Używa struct ErrorState z dosing_types.h
 
 // ----------------------------------------------------------------------------
-// AUTH DATA (0x0410 - 0x044F)
+// AUTH DATA (0x0630 - 0x066F)
 // Hash hasła administratora + salt
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_AUTH_DATA         0x0410
+#define FRAM_ADDR_AUTH_DATA         0x0630
 #define FRAM_SIZE_AUTH_DATA         64
 
 #pragma pack(push, 1)
@@ -141,19 +143,19 @@ struct AuthData {
 static_assert(sizeof(AuthData) == FRAM_SIZE_AUTH_DATA, "AuthData size mismatch");
 
 // ----------------------------------------------------------------------------
-// SESSION DATA (0x0450 - 0x04CF)
+// SESSION DATA (0x0670 - 0x06EF)
 // Dane sesji (persistence między restartami)
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_SESSION_DATA      0x0450
+#define FRAM_ADDR_SESSION_DATA      0x0670
 #define FRAM_SIZE_SESSION_DATA      128
 
 // Struktura sesji zdefiniowana w session_manager.h
 
 // ----------------------------------------------------------------------------
-// VPS LOG BUFFER (0x04D0 - 0x05CF)
+// VPS LOG BUFFER (0x06F0 - 0x07EF)
 // Bufor na nieudane logi VPS (do ponowienia)
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_VPS_LOG_BUFFER    0x04D0
+#define FRAM_ADDR_VPS_LOG_BUFFER    0x06F0
 #define FRAM_SIZE_VPS_LOG_BUFFER    256
 
 #pragma pack(push, 1)
@@ -178,9 +180,9 @@ struct VpsLogBuffer {
 static_assert(sizeof(VpsLogBuffer) <= FRAM_SIZE_VPS_LOG_BUFFER, "VpsLogBuffer too large");
 
 // ----------------------------------------------------------------------------
-// RESERVED SPACE (0x05D0 - 0x7FFF)
+// RESERVED SPACE (0x07F0 - 0x7FFF)
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_RESERVED          0x05D0
+#define FRAM_ADDR_RESERVED          0x07F0
 #define FRAM_SIZE_RESERVED          (FRAM_SIZE_BYTES - FRAM_ADDR_RESERVED)
 
 // ============================================================================
