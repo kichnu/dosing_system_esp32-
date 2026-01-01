@@ -833,6 +833,8 @@ void initApplication() {
     if (initStatus.wifi_ok && initStatus.rtc_ok) {
         Serial.print(F("[INIT] NTP Sync... "));
         if (rtcController.syncNTPWithRetry()) {
+                // Synchronizuj stan schedulera z nowym czasem
+        dosingScheduler.syncTimeState();
             Serial.println(F("OK"));
         } else {
             Serial.println(F("FAILED (will retry later)"));

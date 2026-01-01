@@ -73,6 +73,12 @@ public:
      * Włącz/wyłącz scheduler
      */
     void setEnabled(bool enabled);
+
+    /**
+     * Zaktualizuj _lastDay po zewnętrznej zmianie czasu (NTP sync)
+     * Wywołaj po każdym NTP sync żeby uniknąć fałszywych daily resetów
+     */
+    void syncTimeState();
     
     /**
      * Pobierz aktualny stan

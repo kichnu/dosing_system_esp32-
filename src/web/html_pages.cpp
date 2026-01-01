@@ -242,6 +242,7 @@ const char* DASHBOARD_HTML = R"rawliteral(
     --accent-red: #ef4444;
     --accent-orange: #f97316;
     --accent-yellow: #eab308;
+    --accent-blue-run: #3b82f6;
     
     /* Channel states */
     --state-inactive: #4b5563;
@@ -899,6 +900,18 @@ body::before {
     animation: pulse-border 2s infinite;
 }
 .event-slot.next .event-time { color: var(--accent-yellow); }
+.event-slot.running .event-lbl {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: var(--accent-blue-run);
+    animation: running-pulse 1s infinite;
+}
+.event-slot.running .event-time { color: var(--accent-blue-run); }
+.event-slot.running .event-dot { background: var(--accent-blue-run); }
+
+@keyframes running-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
+    50% { box-shadow: 0 0 8px 2px rgba(59, 130, 246, 0.3); }
+}
 
 @keyframes pulse-border {
     0%, 100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.4); }
@@ -1230,6 +1243,19 @@ body::before {
     width: 14px;
     height: 14px;
 }
+
+.footer-info {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: var(--font-xs);
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    opacity: 0.6;
+    z-index: 5;
+}
+
 /* MEDIA################################################################################################################ */
 
 @media (max-width: 768px) and (hover: none) {
@@ -1284,6 +1310,7 @@ body::before {
                 </button>
 
                 <div class="header-bar">
+                 <div class="footer-info">DOZOWNIK • v1.5.0</div>
                     <div class="logo">
                         <div class="logo-icon">
                             <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
@@ -1313,7 +1340,7 @@ body::before {
                                 <div class="value">OK</div>
                             </div>
                             <div class="status-item">
-                                <div class="label">Time</div>
+                                <div class="label">Time (UTC)</div>
                                 <div class="value" id="sysTime">--:--</div>
                             </div>
                             <div class="status-item" id="wifiStatus">
@@ -1326,6 +1353,8 @@ body::before {
                     <div class="channels-overview">
                         <div class="overview-title">Channels</div>
                         <div class="overview-grid" id="overviewGrid"></div>
+
+                       
                     </div>
                 </div>
             </div>
@@ -1333,6 +1362,8 @@ body::before {
             <div class="vertical-slider" id="verticalSlider">
             <!-- CHANNELS SCREEN -->
             <div class="channels-screen" id="channelScreen"></div>
+
+
 
         </div>
     </div>
@@ -1342,10 +1373,10 @@ body::before {
 // CONFIGURATION
 // ============================================================================
 const CFG = {
-    CHANNEL_COUNT: 6,
+    CHANNEL_COUNT: 4,
     EVENTS_PER_DAY: 23,
     FIRST_EVENT_HOUR: 1,
-    CHANNEL_OFFSET_MIN: 10,
+    CHANNEL_OFFSET_MIN: 15,
     EVENT_WINDOW_SEC: 300,
     MAX_PUMP_SEC: 180,
     MIN_DOSE_ML: 1.0,
@@ -1360,6 +1391,8 @@ const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 // ============================================================================
 let channels = [];
 let currentCh = 0;
+let activeChannel = -1;
+let activeEventHour = -1;
 let showingChannels = false;
 let touchStart = {x:0, y:0};
 let editingChannel = -1;
@@ -1452,7 +1485,31 @@ function renderChannels() {
     }
 }
 
+function getNextEventHour(ch, chIdx) {
+    const now = new Date();
+    const utcHour = now.getUTCHours();
+    const utcMinute = now.getUTCMinutes();
+    const channelOffset = chIdx * CFG.CHANNEL_OFFSET_MIN;
+    
+    for (let h = CFG.FIRST_EVENT_HOUR; h <= 23; h++) {
+        // Czy event jest zaplanowany?
+        if (!(ch.events & (1 << h))) continue;
+        // Czy już wykonany?
+        if (ch.eventsCompleted & (1 << h)) continue;
+        
+        // Czy event jeszcze nie minął?
+        if (h > utcHour) {
+            return h;
+        }
+        if (h === utcHour && channelOffset > utcMinute) {
+            return h;
+        }
+    }
+    return -1;
+}
+
 function renderChannelCard(ch, idx) {
+    const now = new Date();
     const evCnt = popcount(ch.events);
     const dayCnt = popcount(ch.days);
     const single = evCnt > 0 ? ch.dailyDose / evCnt : 0;
@@ -1460,16 +1517,7 @@ function renderChannelCard(ch, idx) {
     const weekly = ch.dailyDose * dayCnt;
     const completedCnt = popcount(ch.eventsCompleted);
     
-    // Determine next event
-    const now = new Date();
-    const currentHour = now.getHours();
-    let nextEvent = -1;
-    for (let h = CFG.FIRST_EVENT_HOUR; h <= 23; h++) {
-        if ((ch.events & (1 << h)) && !(ch.eventsCompleted & (1 << h)) && h >= currentHour) {
-            nextEvent = h;
-            break;
-        }
-    }
+    const nextEvent = getNextEventHour(ch, idx);
     
     // Today's day index (0=Mon)
     const todayIdx = (now.getDay() + 6) % 7;
@@ -1506,10 +1554,11 @@ function renderChannelCard(ch, idx) {
     for (let h = CFG.FIRST_EVENT_HOUR; h <= 23; h++) {
         const checked = (ch.events & (1 << h)) ? 'checked' : '';
         const done = (ch.eventsCompleted & (1 << h)) ? 'done' : '';
-        const next = (h === nextEvent) ? 'next' : '';
+        const running = (idx === activeChannel && h === activeEventHour) ? 'running' : '';
+        const next = (h === nextEvent && !running) ? 'next' : '';
         const timeStr = String(h).padStart(2,'0') + ':' + String(idx * CFG.CHANNEL_OFFSET_MIN).padStart(2,'0');
         eventsHtml += `
-            <div class="event-slot ${done} ${next}">
+            <div class="event-slot ${done} ${running} ${next}">
                 <input type="checkbox" id="ev_${idx}_${h}" class="event-cb" data-ch="${idx}" data-hour="${h}" ${checked}>
                 <label for="ev_${idx}_${h}" class="event-lbl">
                     <span class="event-time">${timeStr}</span>
@@ -1566,7 +1615,7 @@ function renderChannelCard(ch, idx) {
                             <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>
                             </svg>
-                            Time Schedule
+                            Time Schedule (UTC)
                         </div>
                         <div class="section-info" id="evInfo_${idx}">${evCnt} of 23</div>
                     </div>
@@ -2005,6 +2054,18 @@ function loadStatus() {
                 wifiEl.className = 'status-item ' + (data.wifiConnected ? 'ok' : '');
                 wifiEl.querySelector('.value').textContent = data.wifiConnected ? 'OK' : 'OFF';
             }
+            
+            // Active dosing state
+            if (data.activeChannel !== undefined) {
+                const wasActive = activeChannel >= 0;
+                activeChannel = data.activeChannel;
+                activeEventHour = data.activeEventHour !== undefined ? data.activeEventHour : -1;
+                
+                // Re-render if dosing state changed
+                if (wasActive !== (activeChannel >= 0)) {
+                    renderChannels();
+                }
+            }
         })
         .catch(() => {});
 }
@@ -2024,11 +2085,9 @@ function getStateLabel(state) {
 
 function updateClock() {
     const now = new Date();
-    document.getElementById('sysTime').textContent = now.toLocaleTimeString('pl-PL', {
-        timeZone: 'Europe/Warsaw',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+    const utcHours = String(now.getUTCHours()).padStart(2, '0');
+    const utcMinutes = String(now.getUTCMinutes()).padStart(2, '0');
+    document.getElementById('sysTime').textContent = utcHours + ':' + utcMinutes;
 }
 
 function logout() {

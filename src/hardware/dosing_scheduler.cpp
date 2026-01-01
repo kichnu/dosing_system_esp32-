@@ -203,15 +203,39 @@ void DosingScheduler::setEnabled(bool enabled) {
 // DAILY RESET
 // ============================================================================
 
+// bool DosingScheduler::_checkDailyReset() {
+//     TimeInfo now = rtcController.getTime();
+    
+//     // Check if we're in reset window (hour 0) and day changed
+//     if (now.hour == DAILY_RESET_HOUR && now.day != _lastDay) {
+//         return true;
+//     }
+    
+//     return false;
+// }
+
 bool DosingScheduler::_checkDailyReset() {
     TimeInfo now = rtcController.getTime();
     
-    // Check if we're in reset window (hour 0) and day changed
-    if (now.hour == DAILY_RESET_HOUR && now.day != _lastDay) {
-        return true;
+    // Sprawdź czy jesteśmy w oknie resetu (godzina 0)
+    if (now.hour != DAILY_RESET_HOUR) {
+        return false;  // Nie godzina 0 = nie robimy resetu
     }
     
-    return false;
+    // Sprawdź czy dzień się zmienił względem FRAM (nie tylko RAM!)
+    uint32_t currentUtcDay = (uint32_t)now.year * 366 + (uint32_t)now.month * 31 + now.day;
+    
+    SystemState sysState;
+    if (framController.readSystemState(&sysState)) {
+        if (sysState.last_daily_reset_day == currentUtcDay) {
+            return false;  // Już robiliśmy reset dziś
+        }
+    }
+    
+    // Aktualizuj też _lastDay dla spójności
+    _lastDay = now.day;
+    
+    return true;
 }
 
 bool DosingScheduler::_performDailyReset() {
@@ -289,6 +313,21 @@ void DosingScheduler::_checkSchedule() {
                 }
             }
         }
+    }
+}
+
+void DosingScheduler::syncTimeState() {
+    if (!rtcController.isReady()) return;
+    
+    TimeInfo now = rtcController.getTime();
+    
+    uint8_t oldDay = _lastDay;
+    _lastDay = now.day;
+    _lastHour = now.hour;
+    
+    if (oldDay != _lastDay) {
+        Serial.printf("[SCHED] Time state synced: day %d -> %d (no reset triggered)\n", 
+                      oldDay, _lastDay);
     }
 }
 

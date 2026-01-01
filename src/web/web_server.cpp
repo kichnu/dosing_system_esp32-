@@ -116,6 +116,17 @@ void handleApiDosingStatus(AsyncWebServerRequest* request) {
     doc["wifiConnected"] = (WiFi.status() == WL_CONNECTED);
     doc["schedulerEnabled"] = dosingScheduler.isEnabled();
     
+    // Active dosing info
+    if (relayController.isAnyOn()) {
+        doc["activeChannel"] = relayController.getActiveChannel();
+        doc["activeEventHour"] = dosingScheduler.getCurrentEvent().hour;
+        doc["activeRemainingMs"] = relayController.getRemainingTime();
+    } else {
+        doc["activeChannel"] = -1;
+        doc["activeEventHour"] = -1;
+        doc["activeRemainingMs"] = 0;
+    }
+    
     // Time
     if (rtcController.isReady()) {
         TimeInfo now = rtcController.getTime();

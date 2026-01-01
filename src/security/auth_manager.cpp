@@ -1,9 +1,12 @@
 #include "auth_manager.h"
 #include "../core/logging.h"
+#include "../config/credentials_manager.h"
 #include <mbedtls/md.h>
+#include <WiFi.h>
 
 void initAuthManager() {
     LOG_INFO("Authentication manager initialized");
+    LOG_INFO("Using %s credentials", areCredentialsLoaded() ? "FRAM" : "fallback");
 }
 
 String hashPassword(const String& password) {
@@ -30,22 +33,38 @@ String hashPassword(const String& password) {
 }
 
 bool verifyPassword(const String& password) {
-    // Tymczasowe hasło testowe: admin123
-    // TODO: Docelowo z FRAM credentials
-    String testHash = hashPassword("admin123");
+    // Check if FRAM credentials loaded
+    if (!areCredentialsLoaded()) {
+        LOG_WARNING("No FRAM credentials - using fallback password 'admin123'");
+        // Fallback for testing without FRAM
+        String testHash = hashPassword("admin123");
+        String inputHash = hashPassword(password);
+        return (inputHash == testHash);
+    }
+    
+    // Get stored hash from FRAM
+    String expectedHash = String(getAdminPasswordHash());
+    
+    if (expectedHash.length() == 0 || expectedHash == "NO_AUTH_REQUIRES_FRAM_PROGRAMMING") {
+        LOG_ERROR("Invalid admin hash from FRAM");
+        return false;
+    }
+    
+    // Hash input password and compare
     String inputHash = hashPassword(password);
     
-    bool valid = (inputHash == testHash);
+    bool valid = (inputHash == expectedHash);
+    
     if (valid) {
-        LOG_INFO("Password verification OK");
+        LOG_INFO("Password verification OK (FRAM credentials)");
     } else {
         LOG_WARNING("Password verification FAILED");
     }
+    
     return valid;
 }
 
 bool isIPAllowed(IPAddress ip) {
-    // Tymczasowo: wszystkie IP dozwolone
-    // TODO: Docelowo lista z config
+    // Wszystkie IP dozwolone (local network)
     return true;
 }

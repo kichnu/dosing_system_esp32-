@@ -1,7 +1,7 @@
 #include "prov_detector.h"
 #include "prov_config.h"
 #include "../core/logging.h"
-#include "../hardware/hardware_pins.h"
+
 
 
 

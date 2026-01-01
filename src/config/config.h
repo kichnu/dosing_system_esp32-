@@ -14,14 +14,14 @@
 // DEVICE IDENTIFICATION
 // ============================================================================
 #define DEVICE_ID           "DOZOWNIK"
-#define FIRMWARE_VERSION    "1.0.0"
+#define FIRMWARE_VERSION    "2.0.0"
 #define DEVICE_TYPE         "dosing_system"
 
 // ============================================================================
 // CHANNEL CONFIGURATION
 // Zmień CHANNEL_COUNT dla różnych wersji sprzętowych (1-6)
 // ============================================================================
-#define CHANNEL_COUNT       6
+#define CHANNEL_COUNT       4
 
 // ============================================================================
 // GPIO PINOUT - RELAY OUTPUTS (Active HIGH)
@@ -34,9 +34,14 @@
 #define RELAY_PIN_CH5       9
 
 // Tablica pinów relay (inicjalizowana w relay_controller.cpp)
-static const uint8_t RELAY_PINS[6] = {
+// static const uint8_t RELAY_PINS[6] = {
+//     RELAY_PIN_CH0, RELAY_PIN_CH1, RELAY_PIN_CH2,
+//     RELAY_PIN_CH3, RELAY_PIN_CH4, RELAY_PIN_CH5
+// };
+
+static const uint8_t RELAY_PINS[4] = {
     RELAY_PIN_CH0, RELAY_PIN_CH1, RELAY_PIN_CH2,
-    RELAY_PIN_CH3, RELAY_PIN_CH4, RELAY_PIN_CH5
+    RELAY_PIN_CH3
 };
 
 // ============================================================================
@@ -49,9 +54,14 @@ static const uint8_t RELAY_PINS[6] = {
 #define VALIDATE_PIN_CH4    17
 #define VALIDATE_PIN_CH5    18
 
-static const uint8_t VALIDATE_PINS[6] = {
+// static const uint8_t VALIDATE_PINS[6] = {
+//     VALIDATE_PIN_CH0, VALIDATE_PIN_CH1, VALIDATE_PIN_CH2,
+//     VALIDATE_PIN_CH3, VALIDATE_PIN_CH4, VALIDATE_PIN_CH5
+// };
+
+static const uint8_t VALIDATE_PINS[4] = {
     VALIDATE_PIN_CH0, VALIDATE_PIN_CH1, VALIDATE_PIN_CH2,
-    VALIDATE_PIN_CH3, VALIDATE_PIN_CH4, VALIDATE_PIN_CH5
+    VALIDATE_PIN_CH3
 };
 
 // ============================================================================
@@ -75,7 +85,7 @@ static const uint8_t VALIDATE_PINS[6] = {
 #define WDT_TIMEOUT_SECONDS         30
 
 // Offsety czasowe kanałów (w minutach)
-#define CHANNEL_OFFSET_MINUTES      10      // CH0=:00, CH1=:10, CH2=:20...
+#define CHANNEL_OFFSET_MINUTES      15      // CH0=:00, CH1=:10, CH2=:20...
 
 // Okno czasowe eventu
 #define EVENT_WINDOW_SECONDS        300     // 5 minut na wykonanie eventu
@@ -99,7 +109,7 @@ extern bool gpioValidationEnabled;
 
 // #define GPIO_VALIDATION_ENABLED     false    // Globalne włączenie walidacji
 #define GPIO_CHECK_DELAY_MS         200    // Opóźnienie przed sprawdzeniem (2s)
-#define GPIO_DEBOUNCE_MS            3    // Czas debounce (1s)
+#define GPIO_DEBOUNCE_MS            100    // Czas debounce (1s)
 #define GPIO_EXPECTED_STATE         HIGH    // Oczekiwany stan przy działającej pompie
 
 // ============================================================================
