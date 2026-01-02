@@ -4,6 +4,7 @@
  * Firmware testowy - FAZA 2
  * Testowanie RelayController i GpioValidator przez Serial.
  */
+// #include "gpio_validator.h"
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -11,7 +12,6 @@
 #include "dosing_types.h"
 #include "fram_layout.h"
 #include "relay_controller.h"
-#include "gpio_validator.h"
 #include "fram_controller.h"
 #include "algorithm/channel_manager.h"
 #include "rtc_controller.h"
@@ -444,8 +444,7 @@ void testScheduler() {
                                state == SchedulerState::WAITING_PUMP) {
                             dosingScheduler.update();
                             relayController.update();
-                            gpioValidator.update();
-                            
+                        
                             if (state == SchedulerState::VALIDATING) {
                                 Serial.println(F("  Validating GPIO..."));
                             } else if (relayController.isAnyOn()) {
@@ -715,10 +714,10 @@ void initHardware() {
     initStatus.relays_ok = true;  // begin() nie zwraca błędu
     Serial.println(F("OK"));
     
-    // --- GPIO Validator ---
-    Serial.print(F("[INIT] GPIO Validator... "));
-    gpioValidator.begin();
-    Serial.println(F("OK"));
+    // // --- GPIO Validator ---
+    // Serial.print(F("[INIT] GPIO Validator... "));
+    // gpioValidator.begin();
+    // Serial.println(F("OK"));
     
     // --- Hardware summary ---
     initStatus.critical_ok = initStatus.fram_ok && initStatus.rtc_ok;
@@ -1023,7 +1022,7 @@ void loop() {
     
     // Update GPIO validator
         // Update GPIO validator
-    gpioValidator.update();
+    // gpioValidator.update();
     
     // === NTP Resync (hourly) ===
     static uint32_t lastNtpCheck = 0;
@@ -1191,33 +1190,32 @@ void processSerialCommand() {
             relayController.printStatus();
             break;
             
-        // --- GPIO commands ---
-        case 'g':
-        case 'G':
-            gpioValidator.printAllGpio();
-            break;
+        // case 'g':
+        // case 'G':
+        //     gpioValidator.printAllGpio();
+        //     break;
             
-        case 'v':
-        case 'V': {
-            uint8_t active = relayController.getActiveChannel();
-            if (active < CHANNEL_COUNT) {
-                Serial.printf("[CMD] Starting validation for CH%d\n", active);
-                gpioValidator.startValidation(active);
+        // case 'v':
+        // case 'V': {
+        //     uint8_t active = relayController.getActiveChannel();
+        //     if (active < CHANNEL_COUNT) {
+        //         Serial.printf("[CMD] Starting validation for CH%d\n", active);
+        //         gpioValidator.startValidation(active);
                 
-                // Wait for result
-                while (gpioValidator.isValidating()) {
-                    gpioValidator.update();
-                    delay(100);
-                }
+        //         // Wait for result
+        //         while (gpioValidator.isValidating()) {
+        //             gpioValidator.update();
+        //             delay(100);
+        //         }
                 
-                ValidationResult res = gpioValidator.getLastResult();
-                Serial.printf("[CMD] Validation result: %s\n",
-                              GpioValidator::resultToString(res));
-            } else {
-                Serial.println(F("[CMD] No pump active - turn one on first"));
-            }
-            break;
-        }
+        //         ValidationResult res = gpioValidator.getLastResult();
+        //         Serial.printf("[CMD] Validation result: %s\n",
+        //                       GpioValidator::resultToString(res));
+        //     } else {
+        //         Serial.println(F("[CMD] No pump active - turn one on first"));
+        //     }
+        //     break;
+        // }
 
         case 'f':
         case 'F':

@@ -385,16 +385,10 @@ bool DosingScheduler::_startDosing(uint8_t channel, uint8_t hour) {
         return false;
     }
     
-    // Start GPIO validation if enabled
-    if (gpioValidationEnabled) {
-        gpioValidator.startValidation(channel);
-        _currentEvent.validation_started = true;
-        _state = SchedulerState::VALIDATING;
-        Serial.printf("[SCHED] CH%d GPIO validation started\n", channel);
-    } else {
-        _currentEvent.gpio_validated = true;  // Skip validation
-        _state = SchedulerState::DOSING;
-    }
+// GPIO validation is now handled inside RelayController (3-phase: PRE/RUN/POST)
+    // RelayController::turnOn() already uses GPIO_VALIDATION_DEFAULT
+    _currentEvent.validation_started = true;
+    _state = SchedulerState::DOSING;  // RelayController handles validation states internally
     
     return true;
 }
@@ -405,59 +399,33 @@ void DosingScheduler::_checkDosingProgress() {
         return;
     }
     
-    // === Handle GPIO validation state ===
-    if (_state == SchedulerState::VALIDATING) {
-        ValidationResult valResult = gpioValidator.update();
+    // === GPIO validation is now handled by RelayController internally ===
+    // Check RelayController's validation state
+    GpioValidationResult valResult = relayController.getValidationResult();
+    
+    // Handle validation failure from RelayController
+    if (valResult == GpioValidationResult::FAILED_PRE ||
+        valResult == GpioValidationResult::FAILED_RUN ||
+        valResult == GpioValidationResult::FAILED_POST) {
         
-        switch (valResult) {
-            case ValidationResult::OK:
-                Serial.printf("[SCHED] CH%d GPIO validation OK\n", _currentEvent.channel);
-                _currentEvent.gpio_validated = true;
-                _state = SchedulerState::DOSING;
-                break;
-                
-            case ValidationResult::PENDING:
-                // Still validating, continue waiting
-                break;
-                
-            case ValidationResult::SKIPPED:
-                // Validation disabled, continue dosing
-                _currentEvent.gpio_validated = true;
-                _state = SchedulerState::DOSING;
-                break;
-                
-            case ValidationResult::FAILED_NO_SIGNAL:
-            case ValidationResult::FAILED_WRONG_STATE:
-            case ValidationResult::FAILED_TIMEOUT:
-                // CRITICAL ERROR - stop pump immediately
-                Serial.printf("[SCHED] CH%d GPIO VALIDATION FAILED: %s\n", 
-                              _currentEvent.channel,
-                              GpioValidator::resultToString(valResult));
-                
-                relayController.turnOff(_currentEvent.channel);
-                _currentEvent.failed = true;
-                _currentEvent.gpio_validated = false;
-                
-                // Log error but don't halt system (allow other channels)
-                Serial.println(F("[SCHED] WARNING: Pump stopped due to GPIO validation failure!"));
-                
-                _completeDosing(false);
-                return;
-                
-            default:
-                break;
-        }
-        
-        // If still validating, don't proceed to pump check
-        if (_state == SchedulerState::VALIDATING) {
-            return;
-        }
+        Serial.printf("[SCHED] CH%d GPIO VALIDATION FAILED\n", _currentEvent.channel);
+        _currentEvent.failed = true;
+        _currentEvent.gpio_validated = false;
+        _completeDosing(false);
+        return;
+    }
+    
+    // Check if validation passed and pump is running
+    if (relayController.isPumpRunning()) {
+        _currentEvent.gpio_validated = true;
+        _state = SchedulerState::DOSING;
     }
     
     // === Handle dosing state ===
     // Check if pump still running
-    if (!relayController.isChannelOn(_currentEvent.channel)) {
-        // Pump stopped (timeout or manual)
+    if (!relayController.isChannelOn(_currentEvent.channel) && 
+        !relayController.isValidating()) {
+        // Pump stopped (timeout or completed)
         _completeDosing(true);
         return;
     }

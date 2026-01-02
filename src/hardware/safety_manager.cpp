@@ -5,6 +5,7 @@
 #include "safety_manager.h"
 #include "fram_layout.h"
 #include "rtc_controller.h"
+#include "fram_controller.h"
 
 // Global instance
 SafetyManager safetyManager;
@@ -115,7 +116,7 @@ void SafetyManager::triggerCriticalError(CriticalErrorType type,
     _currentError.error_type = type;
     _currentError.channel = channel;
     _currentError.phase = phase;
-    _currentError.timestamp = rtcGetTimestamp();
+    _currentError.timestamp = rtcController.getUnixTime();
     _currentError.error_data = errorData;
     _currentError.total_critical_errors++;
     _currentError.write_count++;
@@ -161,7 +162,7 @@ bool SafetyManager::resetCriticalError() {
     // 2. Aktualizuj strukturę
     _currentError.active_flag = 0;
     _currentError.reset_count++;
-    _currentError.last_reset_timestamp = rtcGetTimestamp();
+    _currentError.last_reset_timestamp = rtcController.getUnixTime();
     _currentError.write_count++;
     
     // 3. Zapisz do FRAM (wyczyść flagę aktywnego błędu)
@@ -275,24 +276,24 @@ void SafetyManager::_takeGpioSnapshot() {
 
 void SafetyManager::_saveErrorToFRAM() {
     // Oblicz CRC
-    _currentError.crc32 = calculateCRC32(&_currentError, 
+    _currentError.crc32 = FramController::calculateCRC32(&_currentError, 
                                           sizeof(CriticalErrorState) - sizeof(uint32_t));
     
     // Zapisz do FRAM
-    framWriteBytes(FRAM_ADDR_CRITICAL_ERROR, &_currentError, sizeof(CriticalErrorState));
+    framController.writeBytes(FRAM_ADDR_CRITICAL_ERROR, &_currentError, sizeof(CriticalErrorState));
 }
 
 void SafetyManager::_loadErrorFromFRAM() {
     CriticalErrorState loaded;
     
-    if (!framReadBytes(FRAM_ADDR_CRITICAL_ERROR, &loaded, sizeof(CriticalErrorState))) {
+    if (!framController.readBytes(FRAM_ADDR_CRITICAL_ERROR, &loaded, sizeof(CriticalErrorState))) {
         Serial.println(F("[SAFETY] Failed to read error state from FRAM"));
         memset(&_currentError, 0, sizeof(_currentError));
         return;
     }
     
     // Walidacja CRC
-    uint32_t expectedCrc = calculateCRC32(&loaded, sizeof(CriticalErrorState) - sizeof(uint32_t));
+    uint32_t expectedCrc = FramController::calculateCRC32(&loaded, sizeof(CriticalErrorState) - sizeof(uint32_t));
     if (loaded.crc32 != expectedCrc) {
         Serial.println(F("[SAFETY] Error state CRC mismatch - treating as no error"));
         memset(&_currentError, 0, sizeof(_currentError));
@@ -305,10 +306,10 @@ void SafetyManager::_loadErrorFromFRAM() {
 void SafetyManager::_clearErrorInFRAM() {
     // Zachowaj statystyki, wyczyść tylko flagę aktywnego błędu
     _currentError.active_flag = 0;
-    _currentError.crc32 = calculateCRC32(&_currentError,
+    _currentError.crc32 = FramController::calculateCRC32(&_currentError,
                                           sizeof(CriticalErrorState) - sizeof(uint32_t));
     
-    framWriteBytes(FRAM_ADDR_CRITICAL_ERROR, &_currentError, sizeof(CriticalErrorState));
+    framController.writeBytes(FRAM_ADDR_CRITICAL_ERROR, &_currentError, sizeof(CriticalErrorState));
 }
 
 void SafetyManager::_confirmResetBeep() {
