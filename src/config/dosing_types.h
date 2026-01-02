@@ -26,18 +26,47 @@ enum ChannelState : uint8_t {
     CH_STATE_PENDING    = 4     // Zmiany oczekujące (od jutra)
 };
 
+// ============================================================================
+// CRITICAL ERROR TYPES (rozszerzone)
+// ============================================================================
+
 /**
  * Typ błędu krytycznego
  */
 enum CriticalErrorType : uint8_t {
-    ERROR_NONE                  = 0,
-    ERROR_GPIO_VALIDATION_FAILED = 1,
-    ERROR_PUMP_TIMEOUT          = 2,
-    ERROR_FRAM_FAILURE          = 3,
-    ERROR_RTC_FAILURE           = 4,
-    ERROR_RELAY_STUCK           = 5,
-    ERROR_UNKNOWN               = 255
+    ERROR_NONE                      = 0,
+    ERROR_GPIO_PRE_CHECK_FAILED     = 1,    // Przewód urwany przed startem
+    ERROR_GPIO_RUN_CHECK_FAILED     = 2,    // Przekaźnik nie zadziałał
+    ERROR_GPIO_POST_CHECK_FAILED    = 3,    // Przekaźnik zablokowany ON (krytyczne!)
+    ERROR_PUMP_TIMEOUT              = 4,
+    ERROR_FRAM_FAILURE              = 5,
+    ERROR_RTC_FAILURE               = 6,
+    ERROR_RELAY_STUCK               = 7,
+    ERROR_UNKNOWN                   = 255
 };
+
+/**
+ * Faza walidacji GPIO
+ */
+enum ValidationPhase : uint8_t {
+    PHASE_NONE      = 0,
+    PHASE_PRE       = 1,    // Przed włączeniem przekaźnika
+    PHASE_RUN       = 2,    // Po włączeniu, podczas pracy
+    PHASE_POST      = 3     // Po wyłączeniu przekaźnika
+};
+
+// /**
+//  * Typ błędu krytycznego
+//  */
+// enum CriticalErrorType : uint8_t {
+//     ERROR_NONE                  = 0,
+//     ERROR_GPIO_VALIDATION_FAILED = 1,
+//     ERROR_PUMP_TIMEOUT          = 2,
+//     ERROR_FRAM_FAILURE          = 3,
+//     ERROR_RTC_FAILURE           = 4,
+//     ERROR_RELAY_STUCK           = 5,
+//     ERROR_UNKNOWN               = 255
+// };
 
 /**
  * Status eventu
@@ -297,6 +326,47 @@ struct DailyLogEntry {
     float    configured_single_ml;  // Skonfigurowana dawka pojedyncza
     float    actual_total_ml;       // Rzeczywista suma dzienna
 };
+
+
+
+// ============================================================================
+// CRITICAL ERROR STATE (32 bajty) - rozszerzona struktura
+// ============================================================================
+
+#pragma pack(push, 1)
+
+/**
+ * Rozszerzony stan błędu krytycznego
+ * Przechowywany w FRAM - przetrwa reset/zanik zasilania
+ */
+struct CriticalErrorState {
+    // === Aktywny błąd (12 bajtów) ===
+    uint8_t  active_flag;           // 1 = błąd aktywny, 0 = brak
+    CriticalErrorType error_type;   // Typ błędu
+    uint8_t  channel;               // Kanał (255 = system)
+    ValidationPhase phase;          // Faza walidacji
+    uint32_t timestamp;             // Unix timestamp wystąpienia
+    uint32_t error_data;            // Dodatkowe dane (np. stan GPIO)
+    
+    // === Snapshot stanu (4 bajty) ===
+    uint8_t  gpio_state_snapshot;   // Stan wszystkich GPIO validation pins
+    uint8_t  relay_state_snapshot;  // Stan wszystkich relay pins
+    uint8_t  pump_was_running;      // Czy pompa pracowała (0/1)
+    uint8_t  _reserved1;
+    
+    // === Historia (8 bajtów) ===
+    uint16_t total_critical_errors; // Łączna liczba błędów (od factory reset)
+    uint16_t reset_count;           // Ile razy resetowano błędy
+    uint32_t last_reset_timestamp;  // Kiedy ostatnio zresetowano
+    
+    // === Integralność (8 bajtów) ===
+    uint32_t write_count;           // Licznik zapisów (debug)
+    uint32_t crc32;                 // CRC32 całości
+};
+
+#pragma pack(pop)
+
+static_assert(sizeof(CriticalErrorState) == 32, "CriticalErrorState must be 32 bytes");
 
 // ============================================================================
 // UTILITY FUNCTIONS (deklaracje)

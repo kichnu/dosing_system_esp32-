@@ -25,6 +25,7 @@
 #include "provisioning/ap_core.h"
 #include "provisioning/ap_server.h"
 #include "config/credentials_manager.h"
+#include "hardware/safety_manager.h"
 
 
 
@@ -910,6 +911,7 @@ void setup() {
             ESP.restart();
         }
     }
+
     
     // Reset init status
     initStatus.reset();
@@ -917,12 +919,36 @@ void setup() {
     #if ENABLE_CLI
     printBanner();
     #endif
+
+    Serial.println(F("\n"));
+    Serial.println(F("╔══════════════════════════════════════════════════════════╗"));
+    Serial.println(F("║              DOZOWNIK v2.0 - Starting...                 ║"));
+    Serial.println(F("╚══════════════════════════════════════════════════════════╝"));
     
     // === INITIALIZATION SEQUENCE ===
     initHardware();
     initNetwork();
     initApplication();
+
+    safetyManager.begin();
     
+        if (!safetyManager.enableIfSafe()) {
+        // Błąd krytyczny aktywny - system zablokowany
+        // Wejdź w pętlę oczekiwania na reset
+        Serial.println(F("[MAIN] System locked due to critical error"));
+        Serial.println(F("[MAIN] Only reset button will be handled"));
+        
+        while (safetyManager.isCriticalErrorActive()) {
+            safetyManager.update();  // Obsługa buzzera i przycisku
+            delay(10);
+        }
+        
+        // Po resecie - restart systemu
+        Serial.println(F("[MAIN] Error cleared - restarting..."));
+        delay(1000);
+        ESP.restart();
+    }
+
     // === POST-INIT ===
     #if ENABLE_CLI
     i2cScan();
@@ -954,12 +980,18 @@ void setup() {
 // ============================================================================
 // LOOP
 // ============================================================================
-// ============================================================================
-// LOOP
-// ============================================================================
+
 void loop() {
     // === CRITICAL: Always update relay (safety) ===
+    safetyManager.update();
     relayController.update();
+
+    if (safetyManager.isCriticalErrorActive()) {
+        // Zatrzymaj wszelkie operacje
+        // (relay_controller powinien już być zatrzymany przez triggerCriticalError)
+        return;
+    }
+
 
  
     // === FEED WATCHDOG (if subscribed) ===

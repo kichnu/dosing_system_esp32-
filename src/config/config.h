@@ -100,17 +100,17 @@ static const uint8_t VALIDATE_PINS[4] = {
 #define CALIBRATION_DURATION_SEC    30      // Czas kalibracji pompy
 #define CALIBRATION_DURATION_MS     (CALIBRATION_DURATION_SEC * 1000UL)
 
-// ============================================================================
-// GPIO VALIDATION
-// ============================================================================
+// // ============================================================================
+// // GPIO VALIDATION
+// // ============================================================================
 
-#define GPIO_VALIDATION_DEFAULT     true    // Wartość startowa
-extern bool gpioValidationEnabled;  
+// #define GPIO_VALIDATION_DEFAULT     true    // Wartość startowa
+// extern bool gpioValidationEnabled;  
 
-// #define GPIO_VALIDATION_ENABLED     false    // Globalne włączenie walidacji
-#define GPIO_CHECK_DELAY_MS         200    // Opóźnienie przed sprawdzeniem (2s)
-#define GPIO_DEBOUNCE_MS            100    // Czas debounce (1s)
-#define GPIO_EXPECTED_STATE         HIGH    // Oczekiwany stan przy działającej pompie
+// // #define GPIO_VALIDATION_ENABLED     false    // Globalne włączenie walidacji
+// #define GPIO_CHECK_DELAY_MS         200    // Opóźnienie przed sprawdzeniem (2s)
+// #define GPIO_DEBOUNCE_MS            100    // Czas debounce (1s)
+// #define GPIO_EXPECTED_STATE         HIGH    // Oczekiwany stan przy działającej pompie
 
 // ============================================================================
 // DOSING LIMITS
@@ -214,6 +214,35 @@ inline uint8_t popcount32(uint32_t n) {
 
 #define ENABLE_SERIAL_DEBUG     true
 #define ENABLE_FULL_LOGGING     true
+
+// ============================================================================
+// SAFETY SYSTEM CONFIGURATION
+// ============================================================================
+
+// --- Master Relay (główne odcięcie zasilania pomp) ---
+#define MASTER_RELAY_PIN              38
+#define MASTER_RELAY_ACTIVE           HIGH    // Stan aktywny (pompy zasilone)
+#define MASTER_RELAY_INACTIVE         LOW     // Stan bezpieczny (pompy odcięte)
+
+// --- Buzzer (sygnalizacja błędu) ---
+#define BUZZER_PIN                    39      // Z prov_config.h
+#define BUZZER_ACTIVE                 HIGH
+#define BUZZER_INACTIVE               LOW
+#define BUZZER_ERROR_ON_MS            500     // HIGH przez 0.5s
+#define BUZZER_ERROR_OFF_MS           1000    // LOW przez 1.0s
+
+// --- Reset Button ---
+#define RESET_BUTTON_PIN              40      // Z prov_config.h
+#define RESET_BUTTON_ACTIVE           LOW     // Aktywny stan (pull-up)
+#define RESET_BUTTON_HOLD_MS          5000    // 5 sekund przytrzymania
+
+// --- GPIO Validation (rozszerzone) ---
+#define GPIO_VALIDATION_DEFAULT       true
+#define GPIO_DEBOUNCE_MS              3       // Debounce dla każdego odczytu
+#define GPIO_CHECK_DELAY_MS           200     // Po włączeniu, przed sprawdzeniem HIGH
+#define GPIO_POST_CHECK_DELAY_MS      100     // Po wyłączeniu, przed sprawdzeniem LOW
+#define GPIO_STATE_IDLE               LOW     // Stan spoczynkowy (przekaźnik OFF)
+#define GPIO_STATE_ACTIVE             HIGH    // Stan aktywny (przekaźnik ON)
 
 // ============================================================================
 // INITIALIZATION STATUS

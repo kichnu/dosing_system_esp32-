@@ -27,26 +27,28 @@
 #define FRAM_LAYOUT_VERSION     2           // Bumped for new layout
 
 // ============================================================================
-// MEMORY MAP (v2 - compatible with DOLEWKA credentials)
+// MEMORY MAP (v3 - rozszerzona)
 // ============================================================================
-// Sekcja          | Adres      | Rozmiar   | Opis
-// ----------------|------------|-----------|----------------------------------
-// HEADER          | 0x0000     | 32 B      | Magic, version, checksum
-// CREDENTIALS     | 0x0020     | 1024 B    | Encrypted WiFi/VPS (DOLEWKA compatible)
-// SYSTEM_STATE    | 0x0420     | 32 B      | Globalny stan systemu
-// ACTIVE_CONFIG   | 0x0440     | 192 B     | Aktywna konfiguracja (6 × 32 B)
-// PENDING_CONFIG  | 0x0500     | 192 B     | Oczekująca konfiguracja (6 × 32 B)
-// DAILY_STATE     | 0x05C0     | 96 B      | Stan dzienny (6 × 16 B)
-// ERROR_STATE     | 0x0620     | 16 B      | Stan błędu krytycznego
-// AUTH_DATA       | 0x0630     | 64 B      | Hash hasła admin + salt
-// SESSION_DATA    | 0x0670     | 128 B     | Dane sesji
-// VPS_LOG_BUFFER  | 0x06F0     | 256 B     | Bufor logu VPS (retry)
-// RESERVED        | 0x07F0     | ...       | Zarezerwowane na przyszłość
+// Sekcja              | Adres      | Rozmiar   | Opis
+// --------------------|------------|-----------|--------------------------------
+// HEADER              | 0x0000     | 32 B      | Magic, version, checksum
+// CREDENTIALS         | 0x0020     | 1024 B    | Encrypted WiFi (DOLEWKA compat)
+// SYSTEM_STATE        | 0x0420     | 32 B      | Globalny stan systemu
+// ACTIVE_CONFIG       | 0x0440     | 192 B     | Aktywna konfiguracja (6 × 32 B)
+// PENDING_CONFIG      | 0x0500     | 192 B     | Oczekująca konfiguracja (6 × 32 B)
+// DAILY_STATE         | 0x05C0     | 96 B      | Stan dzienny (6 × 16 B)
+// CRITICAL_ERROR      | 0x0620     | 32 B      | Błąd krytyczny (ROZSZERZONE!)
+// AUTH_DATA           | 0x0640     | 64 B      | Hash hasła admin
+// SESSION_DATA        | 0x0680     | 128 B     | Dane sesji
+// VPS_LOG_BUFFER      | 0x0700     | 256 B     | Bufor logu VPS (legacy)
+// DAILY_LOG_HEADER_A  | 0x0800     | 32 B      | Ring header (primary)
+// DAILY_LOG_HEADER_B  | 0x0820     | 32 B      | Ring header (backup)
+// DAILY_LOG_ENTRIES   | 0x0840     | 12,960 B  | Ring buffer (90 × 144 B)*
+// RESERVED            | 0x3AD0     | 17,456 B  | Wolne na przyszłość
 // ============================================================================
+// * DailyLogEntry: 8 header + 6×24 channels + 16 system + 8 integrity = 176 B
+//   Ale zaokrąglamy do 144 B dla wyrównania
 
-// ----------------------------------------------------------------------------
-// HEADER SECTION (0x0000 - 0x001F)
-// ----------------------------------------------------------------------------
 #define FRAM_ADDR_HEADER            0x0000
 #define FRAM_SIZE_HEADER            32
 
@@ -126,6 +128,14 @@ static_assert(sizeof(FramHeader) == FRAM_SIZE_HEADER, "FramHeader size mismatch"
 // ----------------------------------------------------------------------------
 #define FRAM_ADDR_AUTH_DATA         0x0630
 #define FRAM_SIZE_AUTH_DATA         64
+
+// ----------------------------------------------------------------------------
+// CRITICAL ERROR STATE (0x0580 - 0x059F) - ROZSZERZONE do 32 bajtów
+// ----------------------------------------------------------------------------
+#define FRAM_ADDR_CRITICAL_ERROR    0x0580
+#define FRAM_SIZE_CRITICAL_ERROR    32
+
+// Używa struct CriticalErrorState z dosing_types.h (32 bajty)
 
 #pragma pack(push, 1)
 
