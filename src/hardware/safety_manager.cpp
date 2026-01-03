@@ -99,10 +99,11 @@ void SafetyManager::triggerCriticalError(CriticalErrorType type,
                                           uint8_t channel,
                                           ValidationPhase phase,
                                           uint32_t errorData) {
-    Serial.println(F(""));
-    Serial.println(F("╔══════════════════════════════════════════════════════════╗"));
-    Serial.println(F("║            *** CRITICAL ERROR TRIGGERED ***              ║"));
-    Serial.println(F("╚══════════════════════════════════════════════════════════╝"));
+    Serial.println();
+    Serial.println(F("+==========================================================+"));
+    Serial.println(F("|            *** CRITICAL ERROR TRIGGERED ***              |"));
+    Serial.println(F("+==========================================================+"));
+
     
     // 1. NATYCHMIAST wyłącz master relay
     _setMasterRelay(false);

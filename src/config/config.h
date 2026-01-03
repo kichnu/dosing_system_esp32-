@@ -238,9 +238,9 @@ inline uint8_t popcount32(uint32_t n) {
 
 // --- GPIO Validation (rozszerzone) ---
 #define GPIO_VALIDATION_DEFAULT       true
-#define GPIO_DEBOUNCE_MS              3       // Debounce dla każdego odczytu
+#define GPIO_DEBOUNCE_MS              5       // Debounce dla każdego odczytu
 #define GPIO_CHECK_DELAY_MS           200     // Po włączeniu, przed sprawdzeniem HIGH
-#define GPIO_POST_CHECK_DELAY_MS      100     // Po wyłączeniu, przed sprawdzeniem LOW
+#define GPIO_POST_CHECK_DELAY_MS      200     // Po wyłączeniu, przed sprawdzeniem LOW
 #define GPIO_STATE_IDLE               LOW     // Stan spoczynkowy (przekaźnik OFF)
 #define GPIO_STATE_ACTIVE             HIGH    // Stan aktywny (przekaźnik ON)
 
