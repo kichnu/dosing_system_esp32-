@@ -139,6 +139,16 @@ public:
      * Oznacz event jako wykonany
      */
     bool markEventCompleted(uint8_t channel, uint8_t hour, float dosed_ml);
+
+    /**
+     * Oznacz event jako nieudany (failed)
+     */
+    bool markEventFailed(uint8_t channel, uint8_t hour);
+    
+    /**
+     * Czy event się nie powiódł
+     */
+    bool isEventFailed(uint8_t channel, uint8_t hour) const;
     
     /**
      * Reset stanów dziennych (o północy)

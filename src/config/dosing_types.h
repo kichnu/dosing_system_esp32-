@@ -173,13 +173,17 @@ static_assert(sizeof(ChannelConfig) == 32, "ChannelConfig must be 32 bytes");
 
 /**
  * Stan dzienny kanału - resetowany o 00:00 UTC
+ * Rozmiar: 24 bajty (rozszerzone o events_failed)
  */
 struct ChannelDailyState {
-    uint32_t events_completed;  // Bitmask wykonanych eventów (bit 1-23)
+    uint32_t events_completed;  // Bitmask wykonanych OK (bit 1-23)
+    uint32_t events_failed;     // Bitmask failed eventów (bit 1-23) [NOWE]
     float    today_added_ml;    // Suma dozowana dzisiaj (ml)
     uint8_t  last_reset_day;    // Dzień ostatniego resetu (UTC day % 256)
-    uint8_t  _reserved[3];      // Padding
+    uint8_t  failed_count;      // Liczba failed dziś [NOWE]
+    uint8_t  _reserved[2];      // Padding
     uint32_t crc32;             // CRC32
+    uint8_t  _padding[4];
     
     // ------------------------------------------
     // Metody pomocnicze
@@ -189,9 +193,18 @@ struct ChannelDailyState {
         return popcount32(events_completed);
     }
     
+    inline uint8_t getFailedCount() const {
+        return popcount32(events_failed);
+    }
+    
     inline bool isEventCompleted(uint8_t hour) const {
         if (hour < FIRST_EVENT_HOUR || hour > LAST_EVENT_HOUR) return false;
         return BIT_CHECK(events_completed, hour);
+    }
+    
+    inline bool isEventFailed(uint8_t hour) const {
+        if (hour < FIRST_EVENT_HOUR || hour > LAST_EVENT_HOUR) return false;
+        return BIT_CHECK(events_failed, hour);
     }
     
     inline void markEventCompleted(uint8_t hour) {
@@ -200,15 +213,24 @@ struct ChannelDailyState {
         }
     }
     
+    inline void markEventFailed(uint8_t hour) {
+        if (hour >= FIRST_EVENT_HOUR && hour <= LAST_EVENT_HOUR) {
+            BIT_SET(events_failed, hour);
+            failed_count++;
+        }
+    }
+    
     inline void reset() {
         events_completed = 0;
+        events_failed = 0;
         today_added_ml = 0.0f;
+        failed_count = 0;
     }
 };
 
 #pragma pack(pop)
 
-static_assert(sizeof(ChannelDailyState) == 16, "ChannelDailyState must be 16 bytes");
+static_assert(sizeof(ChannelDailyState) == 24, "ChannelDailyState must be 24 bytes");
 
 // ============================================================================
 // SYSTEM STATE (globalny stan systemu)

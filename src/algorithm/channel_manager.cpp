@@ -332,6 +332,25 @@ bool ChannelManager::markEventCompleted(uint8_t channel, uint8_t hour, float dos
     return framController.writeDailyState(channel, &_dailyState[channel]);
 }
 
+bool ChannelManager::markEventFailed(uint8_t channel, uint8_t hour) {
+    if (channel >= CHANNEL_COUNT) return false;
+    if (hour < FIRST_EVENT_HOUR || hour > LAST_EVENT_HOUR) return false;
+    
+    _dailyState[channel].markEventFailed(hour);
+    
+    _updateDailyStateCRC(&_dailyState[channel]);
+    
+    Serial.printf("[CH_MGR] CH%d hour %d marked as FAILED (total failed today: %d)\n", 
+                  channel, hour, _dailyState[channel].failed_count);
+    
+    return framController.writeDailyState(channel, &_dailyState[channel]);
+}
+
+bool ChannelManager::isEventFailed(uint8_t channel, uint8_t hour) const {
+    if (channel >= CHANNEL_COUNT) return false;
+    return _dailyState[channel].isEventFailed(hour);
+}
+
 bool ChannelManager::resetDailyStates() {
     Serial.println(F("[CH_MGR] Resetting daily states"));
     
@@ -387,6 +406,9 @@ bool ChannelManager::shouldExecuteEvent(uint8_t channel, uint8_t hour, uint8_t d
     
     // Check if already completed
     if (state.isEventCompleted(hour)) return false;
+
+    // Check if failed (no retry after critical error)
+    if (state.isEventFailed(hour)) return false;
     
     // Check if daily dose already reached
     if (state.today_added_ml >= cfg.daily_dose_ml) return false;

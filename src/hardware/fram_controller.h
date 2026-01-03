@@ -81,11 +81,11 @@ public:
     bool readSystemState(SystemState* state);
     bool writeSystemState(const SystemState* state);
     
-    // --- Error State ---
+    // // --- Error State ---
     
-    bool readErrorState(ErrorState* state);
-    bool writeErrorState(const ErrorState* state);
-    bool clearErrorState();
+    // // bool readErrorState(ErrorState* state);
+    // // bool writeErrorState(const ErrorState* state);
+    // bool clearErrorState();
     
     // --- Utility ---
     

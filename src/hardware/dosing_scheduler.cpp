@@ -444,11 +444,22 @@ void DosingScheduler::_completeDosing(bool success) {
     
     // ALWAYS mark event as done to prevent retry loop
     // Even failed events should not be retried in the same hour window
-    channelManager.markEventCompleted(
-        _currentEvent.channel, 
-        _currentEvent.hour,
-        success ? _currentEvent.target_ml : 0.0f  // Log 0 ml if failed
-    );
+    if (success) {
+        // Event wykonany pomyślnie
+        channelManager.markEventCompleted(
+            _currentEvent.channel, 
+            _currentEvent.hour,
+            _currentEvent.target_ml
+        );
+    } else {
+        // Event nieudany - oznacz jako FAILED (tylko jeśli nie został już oznaczony przez RelayController)
+        if (!channelManager.isEventFailed(_currentEvent.channel, _currentEvent.hour)) {
+            channelManager.markEventFailed(
+                _currentEvent.channel, 
+                _currentEvent.hour
+            );
+        }
+    }
     
     if (success) {
         _todayEventCount++;

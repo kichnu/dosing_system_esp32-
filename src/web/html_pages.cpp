@@ -894,6 +894,13 @@ body::before {
 .event-slot.done .event-time { color: var(--accent-green); }
 .event-slot.done .event-dot { background: var(--accent-green); }
 
+.event-slot.failed .event-lbl {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: #ef4444;
+}
+.event-slot.failed .event-time { color: #ef4444; }
+.event-slot.failed .event-dot { background: #ef4444; }
+
 .event-slot.next .event-lbl {
     background: rgba(234, 179, 8, 0.15);
     border-color: var(--accent-yellow);
@@ -1554,11 +1561,12 @@ function renderChannelCard(ch, idx) {
     for (let h = CFG.FIRST_EVENT_HOUR; h <= 23; h++) {
         const checked = (ch.events & (1 << h)) ? 'checked' : '';
         const done = (ch.eventsCompleted & (1 << h)) ? 'done' : '';
+        const failed = (ch.eventsFailed & (1 << h)) ? 'failed' : '';
         const running = (idx === activeChannel && h === activeEventHour) ? 'running' : '';
         const next = (h === nextEvent && !running) ? 'next' : '';
         const timeStr = String(h).padStart(2,'0') + ':' + String(idx * CFG.CHANNEL_OFFSET_MIN).padStart(2,'0');
         eventsHtml += `
-            <div class="event-slot ${done} ${running} ${next}">
+            <div class="event-slot ${done} ${failed} ${running} ${next}">
                 <input type="checkbox" id="ev_${idx}_${h}" class="event-cb" data-ch="${idx}" data-hour="${h}" ${checked}>
                 <label for="ev_${idx}_${h}" class="event-lbl">
                     <span class="event-time">${timeStr}</span>
@@ -1796,6 +1804,7 @@ function updateChannel(idx) {
     const pumpTime = ch.dosingRate > 0 ? single / ch.dosingRate : 0;
     const weekly = ch.dailyDose * dayCnt;
     const completedCnt = popcount(ch.eventsCompleted);
+    const failedCnt = popcount(ch.eventsFailed || 0);
     
     // Update display
     document.getElementById(`evInfo_${idx}`).textContent = `${evCnt} of 23`;
@@ -1804,6 +1813,10 @@ function updateChannel(idx) {
     document.getElementById(`pumpTime_${idx}`).textContent = `${pumpTime.toFixed(1)} s`;
     document.getElementById(`weekly_${idx}`).textContent = `${weekly.toFixed(1)} ml`;
     document.getElementById(`today_${idx}`).textContent = `${completedCnt} / ${evCnt}`;
+
+    document.getElementById(`today_${idx}`).textContent = failedCnt > 0 
+    ? `${completedCnt}✓ ${failedCnt}✗ / ${evCnt}` 
+    : `${completedCnt} / ${evCnt}`;
     
     // Validation
     const validMsg = document.getElementById(`validMsg_${idx}`);
@@ -2031,6 +2044,7 @@ function loadStatus() {
                         channels[i].dailyDose = chData.dailyDose || 0;
                         channels[i].dosingRate = chData.dosingRate || 0.33;
                         channels[i].eventsCompleted = chData.eventsCompleted || 0;
+                        channels[i].eventsFailed = chData.eventsFailed || 0;
                         channels[i].state = chData.state || 'inactive';
                     }
                 });

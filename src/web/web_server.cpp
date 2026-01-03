@@ -158,6 +158,8 @@ for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
         ch["enabled"] = cfg.enabled ? true : false;
         
         ch["eventsCompleted"] = daily.events_completed;
+        ch["eventsFailed"] = daily.events_failed;
+        ch["failedToday"] = daily.failed_count;
         ch["todayDosed"] = daily.today_added_ml;
         
         ch["singleDose"] = calc.single_dose_ml;

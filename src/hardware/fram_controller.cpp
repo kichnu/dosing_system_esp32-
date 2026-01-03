@@ -192,7 +192,7 @@ bool FramController::_initializeEmpty() {
     if (!writeSystemState(&sysState)) return false;
     
     // Clear error state
-    if (!clearErrorState()) return false;
+    // if (!clearErrorState()) return false;
     
     return true;
 }
@@ -383,27 +383,27 @@ bool FramController::writeSystemState(const SystemState* state) {
     return writeBytes(FRAM_ADDR_SYSTEM_STATE, state, sizeof(SystemState));
 }
 
-// ============================================================================
-// ERROR STATE
-// ============================================================================
+// // ============================================================================
+// // ERROR STATE
+// // ============================================================================
 
-bool FramController::readErrorState(ErrorState* state) {
-    return readBytes(FRAM_ADDR_ERROR_STATE, state, sizeof(ErrorState));
-}
+// bool FramController::readErrorState(ErrorState* state) {
+//     return readBytes(FRAM_ADDR_ERROR_STATE, state, sizeof(ErrorState));
+// }
 
-bool FramController::writeErrorState(const ErrorState* state) {
-    return writeBytes(FRAM_ADDR_ERROR_STATE, state, sizeof(ErrorState));
-}
+// bool FramController::writeErrorState(const ErrorState* state) {
+//     return writeBytes(FRAM_ADDR_ERROR_STATE, state, sizeof(ErrorState));
+// }
 
-bool FramController::clearErrorState() {
-    ErrorState emptyError;
-    memset(&emptyError, 0, sizeof(emptyError));
-    emptyError.error_type = ERROR_NONE;
-    emptyError.affected_channel = 255;
-    emptyError.crc32 = calculateCRC32(&emptyError, sizeof(ErrorState) - sizeof(uint32_t));
+// bool FramController::clearErrorState() {
+//     ErrorState emptyError;
+//     memset(&emptyError, 0, sizeof(emptyError));
+//     emptyError.error_type = ERROR_NONE;
+//     emptyError.affected_channel = 255;
+//     emptyError.crc32 = calculateCRC32(&emptyError, sizeof(ErrorState) - sizeof(uint32_t));
     
-    return writeErrorState(&emptyError);
-}
+//     return writeErrorState(&emptyError);
+// }
 
 // ============================================================================
 // FACTORY RESET

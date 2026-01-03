@@ -24,10 +24,10 @@
 // MAGIC NUMBERS & VERSION
 // ============================================================================
 #define FRAM_MAGIC_NUMBER       0x444F5A41  // "DOZA" in ASCII
-#define FRAM_LAYOUT_VERSION     2           // Bumped for new layout
+#define FRAM_LAYOUT_VERSION     3           // Bumped for new layout
 
 // ============================================================================
-// MEMORY MAP (v3 - rozszerzona)
+// MEMORY MAP (v3 - rozszerzona na 6 kanałów)
 // ============================================================================
 // Sekcja              | Adres      | Rozmiar   | Opis
 // --------------------|------------|-----------|--------------------------------
@@ -36,18 +36,16 @@
 // SYSTEM_STATE        | 0x0420     | 32 B      | Globalny stan systemu
 // ACTIVE_CONFIG       | 0x0440     | 192 B     | Aktywna konfiguracja (6 × 32 B)
 // PENDING_CONFIG      | 0x0500     | 192 B     | Oczekująca konfiguracja (6 × 32 B)
-// DAILY_STATE         | 0x05C0     | 96 B      | Stan dzienny (6 × 16 B)
-// CRITICAL_ERROR      | 0x0620     | 32 B      | Błąd krytyczny (ROZSZERZONE!)
-// AUTH_DATA           | 0x0640     | 64 B      | Hash hasła admin
-// SESSION_DATA        | 0x0680     | 128 B     | Dane sesji
-// VPS_LOG_BUFFER      | 0x0700     | 256 B     | Bufor logu VPS (legacy)
-// DAILY_LOG_HEADER_A  | 0x0800     | 32 B      | Ring header (primary)
-// DAILY_LOG_HEADER_B  | 0x0820     | 32 B      | Ring header (backup)
-// DAILY_LOG_ENTRIES   | 0x0840     | 12,960 B  | Ring buffer (90 × 144 B)*
-// RESERVED            | 0x3AD0     | 17,456 B  | Wolne na przyszłość
+// DAILY_STATE         | 0x05C0     | 144 B     | Stan dzienny (6 × 24 B) [ROZSZERZONE]
+// CRITICAL_ERROR      | 0x0650     | 32 B      | Błąd krytyczny
+// AUTH_DATA           | 0x0670     | 64 B      | Hash hasła admin
+// SESSION_DATA        | 0x06B0     | 128 B     | Dane sesji
+// VPS_LOG_BUFFER      | 0x0730     | 256 B     | Bufor logu VPS
+// DAILY_LOG_HEADER_A  | 0x0830     | 32 B      | Ring header (primary)
+// DAILY_LOG_HEADER_B  | 0x0850     | 32 B      | Ring header (backup)
+// DAILY_LOG_ENTRIES   | 0x0870     | ~12,688 B | Ring buffer (90 × 141 B)
+// RESERVED            | 0x3B00     | ~17,152 B | Wolne na przyszłość
 // ============================================================================
-// * DailyLogEntry: 8 header + 6×24 channels + 16 system + 8 integrity = 176 B
-//   Ale zaokrąglamy do 144 B dla wyrównania
 
 #define FRAM_ADDR_HEADER            0x0000
 #define FRAM_SIZE_HEADER            32
@@ -110,29 +108,30 @@ static_assert(sizeof(FramHeader) == FRAM_SIZE_HEADER, "FramHeader size mismatch"
 // Stan dzienny kanałów - resetowany o północy
 // ----------------------------------------------------------------------------
 #define FRAM_ADDR_DAILY_STATE       0x05C0
+#define FRAM_SIZE_DAILY_STATE_MAX   (6 * sizeof(ChannelDailyState))  // Zawsze rezerwuj na 6 kanałów
 #define FRAM_SIZE_DAILY_STATE       (CHANNEL_COUNT * sizeof(ChannelDailyState))
 
 #define FRAM_ADDR_DAILY_CH(n)       (FRAM_ADDR_DAILY_STATE + ((n) * sizeof(ChannelDailyState)))
 
-// ----------------------------------------------------------------------------
-// ERROR STATE (0x0620 - 0x062F)
-// ----------------------------------------------------------------------------
-#define FRAM_ADDR_ERROR_STATE       0x0620
-#define FRAM_SIZE_ERROR_STATE       16
+// // ----------------------------------------------------------------------------
+// // ERROR STATE (0x0620 - 0x062F)
+// // ----------------------------------------------------------------------------
+// #define FRAM_ADDR_ERROR_STATE       0x0620
+// #define FRAM_SIZE_ERROR_STATE       16
 
-// Używa struct ErrorState z dosing_types.h
+// // Używa struct ErrorState z dosing_types.h
 
 // ----------------------------------------------------------------------------
 // AUTH DATA (0x0630 - 0x066F)
 // Hash hasła administratora + salt
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_AUTH_DATA         0x0630
+#define FRAM_ADDR_AUTH_DATA         0x0670
 #define FRAM_SIZE_AUTH_DATA         64
 
 // ----------------------------------------------------------------------------
-// CRITICAL ERROR STATE (0x0580 - 0x059F) - ROZSZERZONE do 32 bajtów
+// CRITICAL ERROR STATE (0x0650 - 0x066F)
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_CRITICAL_ERROR    0x0580
+#define FRAM_ADDR_CRITICAL_ERROR    0x0650
 #define FRAM_SIZE_CRITICAL_ERROR    32
 
 // Używa struct CriticalErrorState z dosing_types.h (32 bajty)
@@ -156,7 +155,7 @@ static_assert(sizeof(AuthData) == FRAM_SIZE_AUTH_DATA, "AuthData size mismatch")
 // SESSION DATA (0x0670 - 0x06EF)
 // Dane sesji (persistence między restartami)
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_SESSION_DATA      0x0670
+#define FRAM_ADDR_SESSION_DATA      0x06B0
 #define FRAM_SIZE_SESSION_DATA      128
 
 // Struktura sesji zdefiniowana w session_manager.h
@@ -165,7 +164,7 @@ static_assert(sizeof(AuthData) == FRAM_SIZE_AUTH_DATA, "AuthData size mismatch")
 // VPS LOG BUFFER (0x06F0 - 0x07EF)
 // Bufor na nieudane logi VPS (do ponowienia)
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_VPS_LOG_BUFFER    0x06F0
+#define FRAM_ADDR_VPS_LOG_BUFFER    0x0730
 #define FRAM_SIZE_VPS_LOG_BUFFER    256
 
 #pragma pack(push, 1)
@@ -192,7 +191,7 @@ static_assert(sizeof(VpsLogBuffer) <= FRAM_SIZE_VPS_LOG_BUFFER, "VpsLogBuffer to
 // ----------------------------------------------------------------------------
 // RESERVED SPACE (0x07F0 - 0x7FFF)
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_RESERVED          0x07F0
+#define FRAM_ADDR_RESERVED          0x0830
 #define FRAM_SIZE_RESERVED          (FRAM_SIZE_BYTES - FRAM_ADDR_RESERVED)
 
 // ============================================================================
@@ -288,22 +287,22 @@ bool framWriteSystemState(const SystemState* state);
 
 // --- Error State ---
 
-/**
- * Odczytaj stan błędu
- */
-bool framReadErrorState(ErrorState* state);
+// /**
+//  * Odczytaj stan błędu
+//  */
+// bool framReadErrorState(ErrorState* state);
 
-/**
- * Zapisz stan błędu
- */
-bool framWriteErrorState(const ErrorState* state);
+// /**
+//  * Zapisz stan błędu
+//  */
+// bool framWriteErrorState(const ErrorState* state);
 
-/**
- * Wyczyść stan błędu
- */
-bool framClearErrorState();
+// /**
+//  * Wyczyść stan błędu
+//  */
+// bool framClearErrorState();
 
-// --- Low-level ---
+// // --- Low-level ---
 
 /**
  * Odczytaj surowe bajty z FRAM
