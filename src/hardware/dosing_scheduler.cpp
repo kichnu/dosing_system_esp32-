@@ -3,6 +3,7 @@
  */
 
 #include "dosing_scheduler.h"
+#include "daily_log.h"
 
 // Global instance
 DosingScheduler dosingScheduler;
@@ -240,6 +241,12 @@ bool DosingScheduler::_checkDailyReset() {
 
 bool DosingScheduler::_performDailyReset() {
     Serial.println(F("[SCHED] === DAILY RESET ==="));
+
+    // === DAILY LOG - finalizuj poprzedni dzień ===
+    if (g_dailyLog) {
+        g_dailyLog->finalizeDay();
+        g_dailyLog->initializeNewDay(rtcController.getUnixTime());
+    }
     
     TimeInfo now = rtcController.getTime();
     _lastDay = now.day;
@@ -460,6 +467,15 @@ void DosingScheduler::_completeDosing(bool success) {
             );
         }
     }
+
+        // === DAILY LOG - rejestruj dozowanie ===
+    if (g_dailyLog) {
+        g_dailyLog->recordDosing(
+            _currentEvent.channel,
+            _currentEvent.target_ml,
+            success
+        );
+    }
     
     if (success) {
         _todayEventCount++;
@@ -469,6 +485,7 @@ void DosingScheduler::_completeDosing(bool success) {
         Serial.printf("[SCHED] WARNING: CH%d event marked done despite failure (no retry)\n",
                       _currentEvent.channel);
     }
+    
     
     // Clear event
     _currentEvent.channel = 255;

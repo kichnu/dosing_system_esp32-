@@ -228,8 +228,8 @@ inline uint8_t popcount32(uint32_t n) {
 #define BUZZER_PIN                    39      // Z prov_config.h
 #define BUZZER_ACTIVE                 HIGH
 #define BUZZER_INACTIVE               LOW
-#define BUZZER_ERROR_ON_MS            500     // HIGH przez 0.5s
-#define BUZZER_ERROR_OFF_MS           1000    // LOW przez 1.0s
+#define BUZZER_ERROR_ON_MS            100     // HIGH przez 0.5s
+#define BUZZER_ERROR_OFF_MS           500    // LOW przez 1.0s
 
 // --- Reset Button ---
 #define RESET_BUTTON_PIN              40      // Z prov_config.h

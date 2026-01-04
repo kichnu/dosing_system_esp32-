@@ -27,7 +27,7 @@
 #define FRAM_LAYOUT_VERSION     3           // Bumped for new layout
 
 // ============================================================================
-// MEMORY MAP (v3 - rozszerzona na 6 kanałów)
+// ZAKTUALIZOWANA MAPA PAMIĘCI (v4)
 // ============================================================================
 // Sekcja              | Adres      | Rozmiar   | Opis
 // --------------------|------------|-----------|--------------------------------
@@ -36,15 +36,16 @@
 // SYSTEM_STATE        | 0x0420     | 32 B      | Globalny stan systemu
 // ACTIVE_CONFIG       | 0x0440     | 192 B     | Aktywna konfiguracja (6 × 32 B)
 // PENDING_CONFIG      | 0x0500     | 192 B     | Oczekująca konfiguracja (6 × 32 B)
-// DAILY_STATE         | 0x05C0     | 144 B     | Stan dzienny (6 × 24 B) [ROZSZERZONE]
+// DAILY_STATE         | 0x05C0     | 144 B     | Stan dzienny (6 × 24 B)
 // CRITICAL_ERROR      | 0x0650     | 32 B      | Błąd krytyczny
 // AUTH_DATA           | 0x0670     | 64 B      | Hash hasła admin
 // SESSION_DATA        | 0x06B0     | 128 B     | Dane sesji
-// VPS_LOG_BUFFER      | 0x0730     | 256 B     | Bufor logu VPS
-// DAILY_LOG_HEADER_A  | 0x0830     | 32 B      | Ring header (primary)
-// DAILY_LOG_HEADER_B  | 0x0850     | 32 B      | Ring header (backup)
-// DAILY_LOG_ENTRIES   | 0x0870     | ~12,688 B | Ring buffer (90 × 141 B)
-// RESERVED            | 0x3B00     | ~17,152 B | Wolne na przyszłość
+// VPS_LOG_BUFFER      | 0x0730     | 208 B     | [LEGACY - może zostać usunięte]
+// --- DAILY LOG SECTION (0x0800) ---
+// DAILY_LOG_HEADER_A  | 0x0800     | 32 B      | Ring header (primary)
+// DAILY_LOG_HEADER_B  | 0x0820     | 32 B      | Ring header (backup)
+// DAILY_LOG_ENTRIES   | 0x0840     | 19,200 B  | Ring buffer (100 × 192 B)
+// RESERVED            | 0x5340     | ~11,456 B | Wolne na przyszłość
 // ============================================================================
 
 #define FRAM_ADDR_HEADER            0x0000
@@ -194,6 +195,16 @@ static_assert(sizeof(VpsLogBuffer) <= FRAM_SIZE_VPS_LOG_BUFFER, "VpsLogBuffer to
 #define FRAM_ADDR_RESERVED          0x0830
 #define FRAM_SIZE_RESERVED          (FRAM_SIZE_BYTES - FRAM_ADDR_RESERVED)
 
+// // DAILY LOG  ADDRESES 
+
+#define FRAM_ADDR_DAILY_LOG_HEADER_A    0x0800
+#define FRAM_ADDR_DAILY_LOG_HEADER_B    0x0820
+#define FRAM_ADDR_DAILY_LOG_ENTRIES     0x0840
+
+
+// #define FRAM_SIZE_DAILY_LOG_ENTRY       192
+// #define FRAM_DAILY_LOG_CAPACITY         100
+
 // ============================================================================
 // FRAM OPERATIONS (deklaracje)
 // ============================================================================
@@ -323,5 +334,38 @@ bool framProbe();
  * Dump sekcji FRAM do Serial (debug)
  */
 void framDumpSection(uint16_t address, size_t length);
+
+
+// ----------------------------------------------------------------------------
+// DAILY LOG RING BUFFER (0x0800 - 0x533F) - NOWA SEKCJA
+// Zastępuje VPS_LOG_BUFFER - zapis lokalny zamiast do VPS
+// ----------------------------------------------------------------------------
+
+// Adresy Daily Log (okrągły adres startowy 0x0800 = 2KB)
+#define FRAM_ADDR_DAILY_LOG_HEADER_A    0x0800
+#define FRAM_ADDR_DAILY_LOG_HEADER_B    0x0820
+#define FRAM_ADDR_DAILY_LOG_ENTRIES     0x0840
+
+// Rozmiary
+#define FRAM_SIZE_DAILY_LOG_HEADER      32
+#define FRAM_SIZE_DAILY_LOG_ENTRY       192     // Per entry
+#define FRAM_DAILY_LOG_CAPACITY         100     // Number of entries (100 dni = ~3.3 miesiąca)
+#define FRAM_SIZE_DAILY_LOG_ENTRIES     (FRAM_SIZE_DAILY_LOG_ENTRY * FRAM_DAILY_LOG_CAPACITY)
+
+// Magic i wersja
+#define FRAM_MAGIC_DAILY_LOG            0x444C4F47  // "DLOG"
+#define DAILY_LOG_VERSION_CURRENT       1
+
+// Makro do obliczania adresu wpisu
+#define FRAM_DAILY_LOG_ENTRY_ADDR(index) \
+    (FRAM_ADDR_DAILY_LOG_ENTRIES + ((index) * FRAM_SIZE_DAILY_LOG_ENTRY))
+
+// Aktualizacja RESERVED (po Daily Log)
+#undef FRAM_ADDR_RESERVED
+#undef FRAM_SIZE_RESERVED
+#define FRAM_ADDR_RESERVED              0x5340
+#define FRAM_SIZE_RESERVED              (FRAM_SIZE_BYTES - FRAM_ADDR_RESERVED)  // ~11.4 KB wolne
+
+
 
 #endif // FRAM_LAYOUT_H

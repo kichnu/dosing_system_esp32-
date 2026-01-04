@@ -27,7 +27,7 @@
 #include "config/credentials_manager.h"
 #include "hardware/safety_manager.h"
 
-
+#include "daily_log.h"
 
 
 // ============================================================================
@@ -874,7 +874,7 @@ void initApplication() {
 void setup() {
     // Initialize Serial
     Serial.begin(SERIAL_BAUD_RATE);
-    
+
     // Wait for Serial (USB CDC)
     uint32_t startWait = millis();
     while (!Serial && (millis() - startWait < 3000)) {
@@ -930,6 +930,16 @@ void setup() {
     initApplication();
 
     safetyManager.begin();
+
+    // === DAILY LOG INIT ===
+    Serial.print(F("[INIT] Daily Log... "));
+    if (dailyLogInit()) {
+        g_dailyLog->recordPowerCycle();
+        g_dailyLog->initializeNewDay(rtcController.getUnixTime());
+        Serial.println(F("OK"));
+    } else {
+        Serial.println(F("FAILED!"));
+    }
     
         if (!safetyManager.enableIfSafe()) {
         // Błąd krytyczny aktywny - system zablokowany
