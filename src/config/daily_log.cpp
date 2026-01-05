@@ -179,16 +179,25 @@ DailyLogResult DailyLogManager::recordCriticalError(uint8_t error_type, uint8_t 
 DailyLogResult DailyLogManager::recordPowerCycle() {
     if (!initialized_) return DailyLogResult::ERROR_NOT_INITIALIZED;
     
+    Serial.printf("[DailyLog] recordPowerCycle() - current utc_day=%lu, power_cycles=%d\n", 
+                  current_entry_.utc_day, current_entry_.power_cycles);
     
     uint32_t now = rtcController.getUnixTime();
     uint32_t utc_day = timestampToUtcDay(now);
     
+    Serial.printf("[DailyLog] Target utc_day=%lu\n", utc_day);
+    
     auto result = ensureCurrentEntry(utc_day);
-    if (result != DailyLogResult::OK) return result;
+    if (result != DailyLogResult::OK) {
+        Serial.printf("[DailyLog] ensureCurrentEntry FAILED: %d\n", (int)result);
+        return result;
+    }
     
     current_entry_.power_cycles++;
     current_entry_.markPowerLost();
     current_entry_dirty_ = true;
+    
+    Serial.printf("[DailyLog] After increment: power_cycles=%d\n", current_entry_.power_cycles);
     
     return commitCurrentEntry();
 }
@@ -295,10 +304,66 @@ DailyLogResult DailyLogManager::finalizeDay() {
     return DailyLogResult::OK;
 }
 
+// DailyLogResult DailyLogManager::initializeNewDay(uint32_t current_timestamp) {
+//     if (!initialized_) return DailyLogResult::ERROR_NOT_INITIALIZED;
+    
+//     uint32_t utc_day = timestampToUtcDay(current_timestamp);
+    
+//     // Jeśli bieżący wpis jest już dla tego dnia - nie resetuj!
+//     if (current_entry_.utc_day == utc_day) {
+//         Serial.printf("[DailyLog] Day %lu already active, skipping init\n", utc_day);
+//         return DailyLogResult::OK;
+//     }
+    
+//     // Jeśli jest niezapisany poprzedni dzień - najpierw sfinalizuj
+//     if (current_entry_dirty_ && current_entry_.utc_day != 0 && current_entry_.utc_day != utc_day) {
+//         auto result = finalizeDay();
+//         if (result != DailyLogResult::OK) {
+//             Serial.println(F("[DailyLog] Warning: Failed to finalize previous day"));
+//         }
+//     }
+    
+//     // Oblicz dzień tygodnia
+//     // Unix epoch (1970-01-01) to czwartek, więc:
+//     uint8_t day_of_week = (4 + utc_day) % 7;  // 0=Nd, 1=Pn, ... 6=So
+    
+//     // Inicjalizuj nowy wpis
+//     initEmptyEntry(current_entry_, utc_day, day_of_week);
+    
+//     // TODO: Wypełnij plan dozowań z aktywnej konfiguracji
+//     // To wymaga dostępu do ConfigManager - zostawiam jako TODO
+    
+//     current_entry_dirty_ = true;
+    
+//     Serial.printf("[DailyLog] New day initialized: %lu (DoW: %d)\n", utc_day, day_of_week);
+    
+//     return commitCurrentEntry();
+// }
+
 DailyLogResult DailyLogManager::initializeNewDay(uint32_t current_timestamp) {
     if (!initialized_) return DailyLogResult::ERROR_NOT_INITIALIZED;
     
     uint32_t utc_day = timestampToUtcDay(current_timestamp);
+    
+    // Sprawdź czy ten dzień już jest w RAM
+    if (current_entry_.utc_day == utc_day) {
+        Serial.printf("[DailyLog] Day %lu already active in RAM, skipping init\n", utc_day);
+        return DailyLogResult::OK;
+    }
+    
+    // Sprawdź czy ten dzień już istnieje w FRAM (np. po restarcie)
+    if (header_.count > 0 && header_.last_day_utc == utc_day) {
+        DayLogEntry existing;
+        if (loadEntry(header_.head_index, existing) == DailyLogResult::OK) {
+            if (!existing.isFinalized()) {
+                current_entry_ = existing;
+                current_entry_dirty_ = false;
+                Serial.printf("[DailyLog] Resumed existing entry for day %lu (power_cycles=%d)\n", 
+                              utc_day, current_entry_.power_cycles);
+                return DailyLogResult::OK;
+            }
+        }
+    }
     
     // Jeśli jest niezapisany poprzedni dzień - najpierw sfinalizuj
     if (current_entry_dirty_ && current_entry_.utc_day != 0 && current_entry_.utc_day != utc_day) {
@@ -309,14 +374,10 @@ DailyLogResult DailyLogManager::initializeNewDay(uint32_t current_timestamp) {
     }
     
     // Oblicz dzień tygodnia
-    // Unix epoch (1970-01-01) to czwartek, więc:
-    uint8_t day_of_week = (4 + utc_day) % 7;  // 0=Nd, 1=Pn, ... 6=So
+    uint8_t day_of_week = (4 + utc_day) % 7;
     
     // Inicjalizuj nowy wpis
     initEmptyEntry(current_entry_, utc_day, day_of_week);
-    
-    // TODO: Wypełnij plan dozowań z aktywnej konfiguracji
-    // To wymaga dostępu do ConfigManager - zostawiam jako TODO
     
     current_entry_dirty_ = true;
     
@@ -639,6 +700,22 @@ DailyLogResult DailyLogManager::ensureCurrentEntry(uint32_t utc_day) {
 }
 
 DailyLogResult DailyLogManager::commitCurrentEntry() {
+
+    Serial.printf("[DailyLog] commitCurrentEntry() - dirty=%d, utc_day=%lu\n", 
+                  current_entry_dirty_, current_entry_.utc_day);
+    
+    if (!current_entry_dirty_) {
+        Serial.println("[DailyLog] SKIP - entry not dirty!");
+        return DailyLogResult::OK;
+    }
+
+
+
+
+
+
+
+
     if (!current_entry_dirty_) return DailyLogResult::OK;
     
     uint8_t target_index;
@@ -692,6 +769,19 @@ DailyLogResult DailyLogManager::commitCurrentEntry() {
     }
     
     current_entry_dirty_ = false;
+
+
+
+       Serial.printf("[DailyLog] Committed to FRAM, writes=%d\n", current_entry_.fram_writes);
+    return DailyLogResult::OK;
+
+
+
+
+
+
+
+
     return DailyLogResult::OK;
 }
 

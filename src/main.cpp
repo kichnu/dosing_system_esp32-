@@ -934,8 +934,8 @@ void setup() {
     // === DAILY LOG INIT ===
     Serial.print(F("[INIT] Daily Log... "));
     if (dailyLogInit()) {
-        g_dailyLog->recordPowerCycle();
         g_dailyLog->initializeNewDay(rtcController.getUnixTime());
+        g_dailyLog->recordPowerCycle();
         Serial.println(F("OK"));
     } else {
         Serial.println(F("FAILED!"));
@@ -1067,6 +1067,19 @@ void loop() {
                       ch, runtime, remaining);
     }
     #endif
+
+    // === DAILY LOG SYSTEM STATS (co 60 sekund) ===
+    static uint32_t lastStatsUpdate = 0;
+    if (g_dailyLog && g_dailyLog->isInitialized()) {
+        if (millis() - lastStatsUpdate >= 60000) {
+            lastStatsUpdate = millis();
+            
+            uint32_t uptime = millis() / 1000;
+            uint8_t freeHeapKb = ESP.getFreeHeap() / 1024;
+            
+            g_dailyLog->updateSystemStats(uptime, freeHeapKb, 0);  // 0 = temp nieobsługiwana
+        }
+    }
     
     // === Heartbeat (production) ===
     #if !ENABLE_CLI
