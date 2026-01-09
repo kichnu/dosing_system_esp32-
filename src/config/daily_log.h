@@ -219,6 +219,12 @@ public:
      * @brief Zwraca tekstowy opis ostatniego błędu
      */
     const char* getLastErrorString() const;
+
+    /**
+     * @brief Wypełnia plan dozowań dla bieżącego dnia (z aktywnej konfiguracji)
+     * @return DailyLogResult::OK lub kod błędu
+     */
+    DailyLogResult fillTodayPlan();
     
     /**
      * @brief Czy moduł jest zainicjalizowany

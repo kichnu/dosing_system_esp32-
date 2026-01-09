@@ -11,6 +11,7 @@
 #include "rtc_controller.h"
 #include <cstring>
 #include <Arduino.h>
+#include "channel_manager.h"
 
 // Globalna instancja
 DailyLogManager* g_dailyLog = nullptr;
@@ -205,7 +206,6 @@ DailyLogResult DailyLogManager::recordPowerCycle() {
 DailyLogResult DailyLogManager::recordWifiDisconnect() {
     if (!initialized_) return DailyLogResult::ERROR_NOT_INITIALIZED;
     
-    
     uint32_t utc_day = timestampToUtcDay(rtcController.getUnixTime());
     
     auto result = ensureCurrentEntry(utc_day);
@@ -214,8 +214,8 @@ DailyLogResult DailyLogManager::recordWifiDisconnect() {
     current_entry_.wifi_disconnects++;
     current_entry_dirty_ = true;
     
-    // Nie zapisujemy natychmiast - zapisze się przy następnym dozowaniu lub finalizacji
-    return DailyLogResult::OK;
+    // Zapisz od razu - disconnect może poprzedzać restart
+    return commitCurrentEntry();
 }
 
 DailyLogResult DailyLogManager::recordNtpSync() {
@@ -304,42 +304,6 @@ DailyLogResult DailyLogManager::finalizeDay() {
     return DailyLogResult::OK;
 }
 
-// DailyLogResult DailyLogManager::initializeNewDay(uint32_t current_timestamp) {
-//     if (!initialized_) return DailyLogResult::ERROR_NOT_INITIALIZED;
-    
-//     uint32_t utc_day = timestampToUtcDay(current_timestamp);
-    
-//     // Jeśli bieżący wpis jest już dla tego dnia - nie resetuj!
-//     if (current_entry_.utc_day == utc_day) {
-//         Serial.printf("[DailyLog] Day %lu already active, skipping init\n", utc_day);
-//         return DailyLogResult::OK;
-//     }
-    
-//     // Jeśli jest niezapisany poprzedni dzień - najpierw sfinalizuj
-//     if (current_entry_dirty_ && current_entry_.utc_day != 0 && current_entry_.utc_day != utc_day) {
-//         auto result = finalizeDay();
-//         if (result != DailyLogResult::OK) {
-//             Serial.println(F("[DailyLog] Warning: Failed to finalize previous day"));
-//         }
-//     }
-    
-//     // Oblicz dzień tygodnia
-//     // Unix epoch (1970-01-01) to czwartek, więc:
-//     uint8_t day_of_week = (4 + utc_day) % 7;  // 0=Nd, 1=Pn, ... 6=So
-    
-//     // Inicjalizuj nowy wpis
-//     initEmptyEntry(current_entry_, utc_day, day_of_week);
-    
-//     // TODO: Wypełnij plan dozowań z aktywnej konfiguracji
-//     // To wymaga dostępu do ConfigManager - zostawiam jako TODO
-    
-//     current_entry_dirty_ = true;
-    
-//     Serial.printf("[DailyLog] New day initialized: %lu (DoW: %d)\n", utc_day, day_of_week);
-    
-//     return commitCurrentEntry();
-// }
-
 DailyLogResult DailyLogManager::initializeNewDay(uint32_t current_timestamp) {
     if (!initialized_) return DailyLogResult::ERROR_NOT_INITIALIZED;
     
@@ -378,11 +342,83 @@ DailyLogResult DailyLogManager::initializeNewDay(uint32_t current_timestamp) {
     
     // Inicjalizuj nowy wpis
     initEmptyEntry(current_entry_, utc_day, day_of_week);
+
+    for (uint8_t ch = 0; ch < CHANNEL_COUNT; ch++) {
+    const ChannelConfig& cfg = channelManager.getActiveConfig(ch);
+    const ChannelCalculated& calc = channelManager.getCalculated(ch);
+        
+        if (cfg.enabled && calc.is_valid) {
+            // Sprawdź czy dzisiaj jest aktywny dzień
+            // day_of_week: 0=Nd, 1=Pn, ... 6=So
+            // days_bitmask: bit 0=Pn, bit 1=Wt, ... bit 6=Nd
+            uint8_t dayBit = (day_of_week == 0) ? 6 : (day_of_week - 1);
+            
+            if (cfg.days_bitmask & (1 << dayBit)) {
+                current_entry_.channels[ch].events_planned = calc.active_events_count;
+                current_entry_.channels[ch].days_active = cfg.days_bitmask;
+                current_entry_.channels[ch].setDosePlannedMl(cfg.daily_dose_ml);
+                current_entry_.channels[ch].status = DayChannelStatus::SKIPPED; // Domyślnie - zmieni się po dozowaniu
+            }
+        }
+    }
+
+    // Debug - sprawdź czy plan został wypełniony
+    Serial.println(F("[DailyLog] Plan for today:"));
+    for (uint8_t ch = 0; ch < CHANNEL_COUNT; ch++) {
+        Serial.printf("  CH%d: planned=%d, dose=%.1f ml\n", 
+                      ch, 
+                      current_entry_.channels[ch].events_planned,
+                      current_entry_.channels[ch].getDosePlannedMl());
+    }
     
     current_entry_dirty_ = true;
     
     Serial.printf("[DailyLog] New day initialized: %lu (DoW: %d)\n", utc_day, day_of_week);
     
+    return commitCurrentEntry();
+}
+
+DailyLogResult DailyLogManager::fillTodayPlan() {
+    if (!initialized_) return DailyLogResult::ERROR_NOT_INITIALIZED;
+    if (current_entry_.utc_day == 0) return DailyLogResult::ERROR_ENTRY_NOT_FOUND;
+    
+    uint8_t day_of_week = current_entry_.day_of_week;
+    
+    Serial.println(F("[DailyLog] Filling today's plan..."));
+    
+    for (uint8_t ch = 0; ch < CHANNEL_COUNT; ch++) {
+        const ChannelConfig& cfg = channelManager.getActiveConfig(ch);
+        const ChannelCalculated& calc = channelManager.getCalculated(ch);
+        
+        if (cfg.enabled && calc.is_valid) {
+            uint8_t dayBit = (day_of_week == 0) ? 6 : (day_of_week - 1);
+            
+            if (cfg.days_bitmask & (1 << dayBit)) {
+                // Zachowaj istniejące dane jeśli są
+                uint8_t existingCompleted = current_entry_.channels[ch].events_completed;
+                uint8_t existingFailed = current_entry_.channels[ch].events_failed;
+                float existingDose = current_entry_.channels[ch].getDoseActualMl();
+                
+                current_entry_.channels[ch].events_planned = calc.active_events_count;
+                current_entry_.channels[ch].days_active = cfg.days_bitmask;
+                current_entry_.channels[ch].setDosePlannedMl(cfg.daily_dose_ml);
+                
+                // Przywróć istniejące dane
+                current_entry_.channels[ch].events_completed = existingCompleted;
+                current_entry_.channels[ch].events_failed = existingFailed;
+                current_entry_.channels[ch].dose_actual_ml = static_cast<uint16_t>(existingDose * 100);
+                
+                if (existingCompleted == 0 && existingFailed == 0) {
+                    current_entry_.channels[ch].status = DayChannelStatus::SKIPPED;
+                }
+                
+                Serial.printf("  CH%d: %d events, %.1f ml planned (existing: %d done)\n", 
+                              ch + 1, calc.active_events_count, cfg.daily_dose_ml, existingCompleted);
+            }
+        }
+    }
+    
+    current_entry_dirty_ = true;
     return commitCurrentEntry();
 }
 
@@ -709,13 +745,6 @@ DailyLogResult DailyLogManager::commitCurrentEntry() {
         return DailyLogResult::OK;
     }
 
-
-
-
-
-
-
-
     if (!current_entry_dirty_) return DailyLogResult::OK;
     
     uint8_t target_index;
@@ -774,15 +803,7 @@ DailyLogResult DailyLogManager::commitCurrentEntry() {
 
        Serial.printf("[DailyLog] Committed to FRAM, writes=%d\n", current_entry_.fram_writes);
     return DailyLogResult::OK;
-
-
-
-
-
-
-
-
-    return DailyLogResult::OK;
+    // return DailyLogResult::OK;
 }
 
 void DailyLogManager::initEmptyEntry(DayLogEntry& entry, uint32_t utc_day, uint8_t day_of_week) {

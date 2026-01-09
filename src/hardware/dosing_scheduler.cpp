@@ -3,6 +3,7 @@
  */
 
 #include "dosing_scheduler.h"
+#include "daily_log_types.h"
 #include "daily_log.h"
 
 // Global instance
@@ -204,20 +205,9 @@ void DosingScheduler::setEnabled(bool enabled) {
 // DAILY RESET
 // ============================================================================
 
-// bool DosingScheduler::_checkDailyReset() {
-//     TimeInfo now = rtcController.getTime();
-    
-//     // Check if we're in reset window (hour 0) and day changed
-//     if (now.hour == DAILY_RESET_HOUR && now.day != _lastDay) {
-//         return true;
-//     }
-    
-//     return false;
-// }
-
 bool DosingScheduler::_checkDailyReset() {
     TimeInfo now = rtcController.getTime();
-    
+
     // Sprawdź czy jesteśmy w oknie resetu (godzina 0)
     if (now.hour != DAILY_RESET_HOUR) {
         return false;  // Nie godzina 0 = nie robimy resetu
@@ -240,27 +230,45 @@ bool DosingScheduler::_checkDailyReset() {
 }
 
 bool DosingScheduler::_performDailyReset() {
+    TimeInfo now = rtcController.getTime();
+    Serial.printf("[SCHED] _performDailyReset called at %02d:%02d UTC!\n", now.hour, now.minute);
+    
+    // SAFETY: Blokuj reset stanów jeśli nie jest północ
+    bool isMidnight = (now.hour == DAILY_RESET_HOUR);
+    
     Serial.println(F("[SCHED] === DAILY RESET ==="));
-
-    // === DAILY LOG - finalizuj poprzedni dzień ===
+    
+    // Daily Log - zawsze aktualizuj plan
     if (g_dailyLog) {
-        g_dailyLog->finalizeDay();
-        g_dailyLog->initializeNewDay(rtcController.getUnixTime());
+        uint32_t currentTimestamp = rtcController.getUnixTime();
+        uint32_t currentUtcDay = currentTimestamp / 86400;
+        
+        DayLogEntry currentEntry;
+        if (g_dailyLog->getCurrentEntry(currentEntry) == DailyLogResult::OK) {
+            if (currentEntry.utc_day != currentUtcDay) {
+                g_dailyLog->finalizeDay();
+                g_dailyLog->initializeNewDay(currentTimestamp);
+            }
+        }
+        g_dailyLog->fillTodayPlan();
     }
     
-    TimeInfo now = rtcController.getTime();
     _lastDay = now.day;
     _todayEventCount = 0;
     
-    // Apply pending changes
+    // Apply pending changes - zawsze OK
     if (channelManager.hasAnyPendingChanges()) {
         Serial.println(F("[SCHED] Applying pending config changes..."));
         channelManager.applyAllPendingChanges();
     }
     
-    // Reset daily states
-    Serial.println(F("[SCHED] Resetting daily states..."));
-    channelManager.resetDailyStates();
+    // Reset daily states - TYLKO O PÓŁNOCY!
+    if (isMidnight) {
+        Serial.println(F("[SCHED] Resetting daily states..."));
+        channelManager.resetDailyStates();
+    } else {
+        Serial.println(F("[SCHED] NOT resetting daily states (not midnight)"));
+    }
     
     // Save reset day to FRAM
     uint32_t currentUtcDay = (uint32_t)now.year * 366 + (uint32_t)now.month * 31 + now.day;

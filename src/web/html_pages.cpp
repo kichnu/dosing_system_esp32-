@@ -297,7 +297,6 @@ const char* DASHBOARD_HTML = R"rawliteral(
 
 html, body {
     height: 100%;
-    overflow: hidden;
     touch-action: pan-y;
 }
 
@@ -735,7 +734,7 @@ body::before {
 }
 
 .channel-number {
-    margin-left: 10px;
+    margin-left: 40px;
     margin-right: 10px;
 
     font-size: 22px;
@@ -757,30 +756,30 @@ body::before {
 .state-badge.configured { background: rgba(34, 197, 94, 0.15); color: var(--state-configured); }
 .state-badge.pending { background: rgba(56, 189, 248, 0.15); color: var(--state-pending); }
 
-.back-btn {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 10px;
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--text-secondary);
-    font-size: var(--font-sm);
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--transition-fast);
-}
+// .back-btn {
+//     display: flex;
+//     align-items: center;
+//     gap: 4px;
+//     padding: 6px 10px;
+//     background: var(--bg-input);
+//     border: 1px solid var(--border);
+//     border-radius: var(--radius-sm);
+//     color: var(--text-secondary);
+//     font-size: var(--font-sm);
+//     font-weight: 500;
+//     cursor: pointer;
+//     transition: all var(--transition-fast);
+// }
 
-.back-btn:hover {
-    background: var(--bg-card-hover);
-    color: var(--text-primary);
-}
+// .back-btn:hover {
+//     background: var(--bg-card-hover);
+//     color: var(--text-primary);
+// }
 
-.back-btn svg {
-    width: 12px;
-    height: 12px;
-}
+// .back-btn svg {
+//     width: 12px;
+//     height: 12px;
+// }
 
 .card-content {
     flex: 1;
@@ -1287,11 +1286,15 @@ body::before {
 
     }
 
+    .channel-number{
+        margin-left: 10px;
+    }
+
     .card-header{
         height: auto;
     }
     .channel-title{
-        margin-left: 60px;
+        margin-left: 40px;
     }
 
     .header-toggle{
@@ -1303,6 +1306,212 @@ body::before {
     top: 6px;
     }
 }
+
+/* ============================================================================
+   DAILY LOG SECTION
+   ============================================================================ */
+
+
+.daily-log-section {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.daily-log-container {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 10px;
+}
+
+/* Header: Date + Day + Badge */
+.dl-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.dl-date {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: var(--font-md);
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.dl-day {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+}
+
+.dl-badge {
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: var(--font-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.dl-badge.today {
+    background: rgba(34, 211, 213, 0.15);
+    color: var(--accent-cyan);
+    border: 1px solid var(--accent-cyan);
+}
+
+.dl-badge.archive {
+    background: rgba(100, 116, 139, 0.15);
+    color: var(--text-muted);
+    border: 1px solid var(--text-muted);
+}
+
+/* Navigation */
+.dl-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding: 4px 0;
+}
+
+.dl-nav-btn {
+    width: 32px;
+    height: 28px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+}
+
+.dl-nav-btn:hover:not(:disabled) {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+    border-color: var(--accent-cyan);
+}
+
+.dl-nav-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.dl-nav-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.dl-nav-info {
+    font-size: var(--font-xs);
+    color: var(--text-muted);
+}
+
+/* Channels list */
+.dl-channels {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.dl-channel {
+    background: var(--bg-input);
+    border-radius: var(--radius-sm);
+    padding: 6px 8px;
+}
+
+.dl-channel.inactive {
+    opacity: 0.4;
+}
+
+.dl-ch-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.dl-ch-name {
+    font-size: var(--font-xs);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.dl-ch-dose {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: var(--font-xs);
+    color: var(--text-muted);
+}
+
+.dl-ch-dose .actual {
+    color: var(--accent-green);
+    font-weight: 600;
+}
+
+/* Bar graph */
+.dl-bar {
+    height: 8px;
+    background: var(--bg-primary);
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+}
+
+.dl-bar-segment {
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.dl-bar-segment.completed {
+    background: var(--accent-green);
+}
+
+.dl-bar-segment.pending {
+    background: var(--accent-blue);
+}
+
+.dl-bar-segment.failed {
+    background: var(--accent-red);
+}
+
+.dl-bar-segment.inactive {
+    background: var(--bg-card);
+}
+
+.dl-bar-segment:not(:last-child) {
+    border-right: 1px solid var(--bg-primary);
+}
+
+/* System stats */
+.dl-stats {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.dl-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.dl-stat-icon {
+    font-size: 10px;
+}
+
+.dl-stat-val {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: var(--font-xs);
+    color: var(--text-secondary);
+}
+
 
 </style>
 </head>
@@ -1363,6 +1572,62 @@ body::before {
 
                        
                     </div>
+
+                    <!-- DAILY LOG SECTION -->
+                    <div class="daily-log-section">
+                        <div class="overview-title">Dosing History</div>
+                        <div class="daily-log-container" id="dailyLogContainer">
+                            <!-- Header: Date + Badge -->
+                            <div class="dl-header">
+                                <div class="dl-date" id="dlDate">--.--.--</div>
+                                <div class="dl-day" id="dlDay">---</div>
+                                <div class="dl-badge today" id="dlBadge">TODAY</div>
+                            </div>
+                            
+                            <!-- Navigation -->
+                            <div class="dl-nav">
+                                <button class="dl-nav-btn" id="dlPrev" onclick="dlPrevDay()">
+                                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <polyline points="15,18 9,12 15,6"/>
+                                    </svg>
+                                </button>
+                                <div class="dl-nav-info" id="dlNavInfo">Day 1 of 1</div>
+                                <button class="dl-nav-btn" id="dlNext" onclick="dlNextDay()">
+                                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <polyline points="9,18 15,12 9,6"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            
+                            <!-- Channels -->
+                            <div class="dl-channels" id="dlChannels"></div>
+                            
+                            <!-- System Stats -->
+                            <div class="dl-stats" id="dlStats">
+                                <div class="dl-stat" title="Uptime">
+                                    <span class="dl-stat-icon">⏱</span>
+                                    <span class="dl-stat-val" id="dlUptime">--</span>
+                                </div>
+                                <div class="dl-stat" title="WiFi disconnects">
+                                    <span class="dl-stat-icon">📶</span>
+                                    <span class="dl-stat-val" id="dlWifi">--</span>
+                                </div>
+                                <div class="dl-stat" title="FRAM writes">
+                                    <span class="dl-stat-icon">💾</span>
+                                    <span class="dl-stat-val" id="dlFram">--</span>
+                                </div>
+                                <div class="dl-stat" title="NTP syncs">
+                                    <span class="dl-stat-icon">🔄</span>
+                                    <span class="dl-stat-val" id="dlNtp">--</span>
+                                </div>
+                                <div class="dl-stat" title="Power cycles">
+                                    <span class="dl-stat-icon">⚡</span>
+                                    <span class="dl-stat-val" id="dlPower">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
             
@@ -1455,6 +1720,8 @@ function init() {
     // Load data from API
     loadStatus();
     setInterval(loadStatus, 5000);
+
+    initDailyLog();
 }
 
 // ============================================================================
@@ -1607,12 +1874,6 @@ function renderChannelCard(ch, idx) {
                     <span class="channel-number">Channel ${idx+1}</span>
                     <span class="state-badge ${ch.state}">${getStateLabel(ch.state)}</span>
                 </div>
-                <button class="back-btn" onclick="showNav()">
-                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <polyline points="15,18 9,12 15,6"/>
-                    </svg>
-                    Back
-                </button>
             </div>
             
             <div class="card-content">
@@ -2108,6 +2369,175 @@ function logout() {
     if (confirm('Logout?')) {
         fetch('api/logout', { method: 'POST' }).then(() => location.href = '/login');
     }
+}
+
+// ============================================================================
+// DAILY LOG
+// ============================================================================
+const DL_CFG = {
+    MAX_CHANNELS: 6,
+    DISPLAY_CHANNELS: 4,  // Aktualnie aktywne kanały
+    REFRESH_CURRENT: 30000,  // 30s dla bieżącego dnia
+    REFRESH_LIST: 60000      // 60s dla listy
+};
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+let dlEntries = [];
+let dlCurrentIndex = 0;
+let dlLastRefresh = 0;
+
+function initDailyLog() {
+    loadDailyLogList();
+    setInterval(() => {
+        const now = Date.now();
+        if (dlCurrentIndex === 0 && now - dlLastRefresh > DL_CFG.REFRESH_CURRENT) {
+            loadDailyLogEntry(0);
+        }
+    }, DL_CFG.REFRESH_CURRENT);
+    
+    setInterval(loadDailyLogList, DL_CFG.REFRESH_LIST);
+}
+
+function loadDailyLogList() {
+    fetch('api/daily-logs')
+        .then(r => r.json())
+        .then(data => {
+            if (data.entries && data.entries.length > 0) {
+                dlEntries = data.entries;
+                renderDailyLogNav();
+                loadDailyLogEntry(dlCurrentIndex);
+            }
+        })
+        .catch(err => console.log('DL list error:', err));
+}
+
+function loadDailyLogEntry(index) {
+    if (index < 0 || index >= dlEntries.length) return;
+    
+    fetch(`api/daily-log?index=${index}`)
+        .then(r => r.json())
+        .then(data => {
+            dlLastRefresh = Date.now();
+            renderDailyLogEntry(data, index);
+        })
+        .catch(err => console.log('DL entry error:', err));
+}
+
+function renderDailyLogNav() {
+    const total = dlEntries.length;
+    document.getElementById('dlNavInfo').textContent = `Day ${dlCurrentIndex + 1} of ${total}`;
+    document.getElementById('dlPrev').disabled = (dlCurrentIndex >= total - 1);
+    document.getElementById('dlNext').disabled = (dlCurrentIndex <= 0);
+}
+
+function renderDailyLogEntry(entry, index) {
+    // Date header
+    const date = utcDayToDate(entry.utcDay);
+    document.getElementById('dlDate').textContent = formatDate(date);
+    document.getElementById('dlDay').textContent = DAY_NAMES[entry.dayOfWeek];
+    
+    // Badge
+    const badge = document.getElementById('dlBadge');
+    if (entry.isCurrent !== undefined ? entry.isCurrent : (index === 0 && !entry.isFinalized)) {
+        badge.textContent = 'TODAY';
+        badge.className = 'dl-badge today';
+    } else {
+        badge.textContent = 'ARCHIVE';
+        badge.className = 'dl-badge archive';
+    }
+    
+    // Channels
+    renderDailyLogChannels(entry.channels || []);
+    
+    // System stats
+    const sys = entry.system || {};
+    document.getElementById('dlUptime').textContent = formatUptime(sys.uptimeSeconds || 0);
+    document.getElementById('dlWifi').textContent = sys.wifiDisconnects || 0;
+    document.getElementById('dlFram').textContent = sys.framWrites || 0;
+    document.getElementById('dlNtp').textContent = sys.ntpSyncs || 0;
+    document.getElementById('dlPower').textContent = entry.powerCycles || sys.powerCycles || 0;
+}
+
+function renderDailyLogChannels(channels) {
+    const container = document.getElementById('dlChannels');
+    let html = '';
+    
+    for (let i = 0; i < DL_CFG.DISPLAY_CHANNELS; i++) {
+        const ch = channels[i] || {};
+        const planned = ch.eventsPlanned || 0;
+        const completed = ch.eventsCompleted || 0;
+        const failed = ch.eventsFailed || 0;
+        const pending = Math.max(0, planned - completed - failed);
+        const dosePlanned = ch.dosePlannedMl || 0;
+        const doseActual = ch.doseActualMl || 0;
+        
+        const isInactive = (ch.status === 'inactive' || planned === 0) && doseActual === 0;
+        const inactiveClass = isInactive ? 'inactive' : '';
+        
+        // Calculate bar percentages
+        const total = planned > 0 ? planned : 1;
+        const pctCompleted = (completed / total) * 100;
+        const pctFailed = (failed / total) * 100;
+        const pctPending = (pending / total) * 100;
+        
+        html += `
+            <div class="dl-channel ${inactiveClass}">
+                <div class="dl-ch-header">
+                    <span class="dl-ch-name">CH ${i + 1}</span>
+                    <span class="dl-ch-dose">
+                        <span class="actual">${doseActual.toFixed(1)}</span> / ${dosePlanned.toFixed(1)} ml
+                    </span>
+                </div>
+                <div class="dl-bar">
+                    ${isInactive ? 
+                        `<div class="dl-bar-segment inactive" style="width: 100%"></div>` :
+                        `<div class="dl-bar-segment completed" style="width: ${pctCompleted}%"></div>
+                         <div class="dl-bar-segment failed" style="width: ${pctFailed}%"></div>
+                         <div class="dl-bar-segment pending" style="width: ${pctPending}%"></div>`
+                    }
+                </div>
+            </div>
+        `;
+    }
+    
+    container.innerHTML = html;
+}
+
+function dlNextDay() {
+    if (dlCurrentIndex > 0) {
+        dlCurrentIndex--;
+        renderDailyLogNav();
+        loadDailyLogEntry(dlCurrentIndex);
+    }
+}
+
+function dlPrevDay() {
+    if (dlCurrentIndex < dlEntries.length - 1) {
+        dlCurrentIndex++;
+        renderDailyLogNav();
+        loadDailyLogEntry(dlCurrentIndex);
+    }
+}
+
+// Helpers
+function utcDayToDate(utcDay) {
+    return new Date(utcDay * 86400 * 1000);
+}
+
+function formatDate(date) {
+    const d = date.getUTCDate().toString().padStart(2, '0');
+    const m = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+    const y = date.getUTCFullYear().toString().slice(-2);
+    return `${d}.${m}.${y}`;
+}
+
+function formatUptime(seconds) {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return `${h}h${m}m`;
 }
 
 document.addEventListener('DOMContentLoaded', init);

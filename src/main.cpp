@@ -743,14 +743,38 @@ void initNetwork() {
     // TODO: Docelowo credentials z FRAM/Captive Portal
     // WiFi.begin("KiG_2.4_IOT", "*qY4I@5&*%0lK1Q$U6UV7^S");
 
-        // Use credentials from FRAM or fallback
+    // Use credentials from FRAM or fallback
     const char* ssid = getWiFiSSID();
     const char* password = getWiFiPassword();
     
     Serial.printf("connecting to %s (%s)... ", 
                   ssid, 
                   areCredentialsLoaded() ? "FRAM" : "fallback");
+
+    // WiFi event handler for disconnect tracking (with debounce)
+// WiFi event handler for disconnect tracking (with debounce)
+    WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+        static uint32_t lastRecord = 0;
+        if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+            uint32_t now = millis();
+            // Debounce: zapisz max raz na 60 sekund
+            if (now - lastRecord > 60000) {
+                lastRecord = now;
+                Serial.println(F("[WIFI] Disconnected (recorded)"));
+                if (g_dailyLog && g_dailyLog->isInitialized()) {
+                    g_dailyLog->recordWifiDisconnect();
+                }
+            }
+            // Próbuj reconnect
+            Serial.println(F("[WIFI] Attempting reconnect..."));
+            WiFi.reconnect();
+        } else if (event == ARDUINO_EVENT_WIFI_STA_CONNECTED) {
+            Serial.println(F("[WIFI] Reconnected!"));
+        }
+    });
     
+    WiFi.setAutoReconnect(true);
+    WiFi.persistent(true);
     WiFi.begin(ssid, password);
     
     uint32_t wifiStart = millis();
@@ -932,10 +956,14 @@ void setup() {
     safetyManager.begin();
 
     // === DAILY LOG INIT ===
-    Serial.print(F("[INIT] Daily Log... "));
+Serial.print(F("[INIT] Daily Log... "));
     if (dailyLogInit()) {
         g_dailyLog->initializeNewDay(rtcController.getUnixTime());
         g_dailyLog->recordPowerCycle();
+        // Zarejestruj NTP sync jeśli już się odbył przed inicjalizacją Daily Log
+        if (rtcController.isNtpSynced()) {
+            g_dailyLog->recordNtpSync();
+        }
         Serial.println(F("OK"));
     } else {
         Serial.println(F("FAILED!"));
@@ -1068,7 +1096,7 @@ void loop() {
     }
     #endif
 
-    // === DAILY LOG SYSTEM STATS (co 60 sekund) ===
+// === DAILY LOG SYSTEM STATS (co 60 sekund) ===
     static uint32_t lastStatsUpdate = 0;
     if (g_dailyLog && g_dailyLog->isInitialized()) {
         if (millis() - lastStatsUpdate >= 60000) {
@@ -1077,7 +1105,7 @@ void loop() {
             uint32_t uptime = millis() / 1000;
             uint8_t freeHeapKb = ESP.getFreeHeap() / 1024;
             
-            g_dailyLog->updateSystemStats(uptime, freeHeapKb, 0);  // 0 = temp nieobsługiwana
+            g_dailyLog->updateSystemStats(uptime, freeHeapKb, 0);
         }
     }
     
