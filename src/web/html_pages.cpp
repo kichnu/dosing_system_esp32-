@@ -507,7 +507,7 @@ body::before {
 
 .status-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 8px;
 }
 
@@ -1559,10 +1559,6 @@ body::before {
                                 <div class="label">Time (UTC)</div>
                                 <div class="value" id="sysTime">--:--</div>
                             </div>
-                            <div class="status-item" id="wifiStatus">
-                                <div class="label">WiFi</div>
-                                <div class="value">--</div>
-                            </div>
                         </div>
                     </div>
                     
@@ -2323,13 +2319,6 @@ function loadStatus() {
                 sysEl.className = 'status-item ' + (data.systemOk ? 'ok' : 'error');
                 sysEl.querySelector('.value').textContent = data.systemOk ? 'OK' : 'ERROR';
             }
-            
-            if (data.wifiConnected !== undefined) {
-                const wifiEl = document.getElementById('wifiStatus');
-                wifiEl.className = 'status-item ' + (data.wifiConnected ? 'ok' : '');
-                wifiEl.querySelector('.value').textContent = data.wifiConnected ? 'OK' : 'OFF';
-            }
-            
             // Active dosing state
             if (data.activeChannel !== undefined) {
                 const wasActive = activeChannel >= 0;

@@ -134,6 +134,14 @@ DailyLogResult DailyLogManager::recordDosing(uint8_t channel, float dose_ml, boo
             ch.error_type = DayChannelErrorType::OTHER;
         }
     }
+
+        if (ch.events_failed > 0) {
+        ch.status = DayChannelStatus::ERROR;
+    } else if (ch.events_completed >= ch.events_planned && ch.events_planned > 0) {
+        ch.status = DayChannelStatus::OK;
+    } else if (ch.events_completed > 0) {
+        ch.status = DayChannelStatus::PARTIAL;
+    }
     
     current_entry_dirty_ = true;
     current_entry_.fram_writes++;

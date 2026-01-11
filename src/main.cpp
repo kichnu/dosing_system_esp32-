@@ -16,6 +16,7 @@
 #include "algorithm/channel_manager.h"
 #include "rtc_controller.h"
 #include "dosing_scheduler.h"
+#include "esp_system.h"
 
 #include "web_server.h"
 #include <WiFi.h>
@@ -28,6 +29,7 @@
 #include "hardware/safety_manager.h"
 
 #include "daily_log.h"
+
 
 
 // ============================================================================
@@ -933,6 +935,20 @@ void setup() {
             delay(5000);
             ESP.restart();
         }
+    }
+
+    // Log restart reason
+    esp_reset_reason_t reason = esp_reset_reason();
+    Serial.printf("[BOOT] Reset reason: %d ", reason);
+    switch(reason) {
+        case ESP_RST_POWERON: Serial.println(F("(Power-on)")); break;
+        case ESP_RST_SW: Serial.println(F("(Software)")); break;
+        case ESP_RST_PANIC: Serial.println(F("(Panic/Exception)")); break;
+        case ESP_RST_INT_WDT: Serial.println(F("(Interrupt WDT)")); break;
+        case ESP_RST_TASK_WDT: Serial.println(F("(Task WDT)")); break;
+        case ESP_RST_WDT: Serial.println(F("(Other WDT)")); break;
+        case ESP_RST_BROWNOUT: Serial.println(F("(Brownout)")); break;
+        default: Serial.println(F("(Unknown)")); break;
     }
 
     
