@@ -60,6 +60,11 @@ public:
      * Pobierz obliczone wartości kanału
      */
     const ChannelCalculated& getCalculated(uint8_t channel) const;
+
+    /**
+     * Pobierz container volume kanału
+     */
+    const ContainerVolume& getContainerVolume(uint8_t channel) const;
     
     /**
      * Pobierz stan kanału (do GUI)
@@ -134,6 +139,48 @@ public:
     bool revertPendingChanges(uint8_t channel);
     
     // --- Daily State ---
+
+    // --- Container Volume ---
+    
+    /**
+     * Ustaw pojemność pojemnika (ml)
+     */
+    bool setContainerCapacity(uint8_t channel, float capacity_ml);
+    
+    /**
+     * Refill - resetuj remaining do container capacity
+     */
+    bool refillContainer(uint8_t channel);
+    
+    /**
+     * Odejmij objętość od remaining (wywoływane po dawce)
+     */
+    bool deductVolume(uint8_t channel, float ml);
+    
+    /**
+     * Czy stan płynu jest niski (<10%)
+     */
+    bool isLowVolume(uint8_t channel) const;
+    
+    /**
+     * Pobierz pozostałą objętość (ml)
+     */
+    float getRemainingVolume(uint8_t channel) const;
+    
+    /**
+     * Pobierz pojemność pojemnika (ml)
+     */
+    float getContainerCapacity(uint8_t channel) const;
+    
+    /**
+     * Oblicz ile dni zostało przy aktualnym zużyciu
+     */
+    float getDaysRemaining(uint8_t channel) const;
+    
+    /**
+     * Przeładuj container volumes z FRAM
+     */
+    bool reloadContainerVolumes();
     
     /**
      * Oznacz event jako wykonany
@@ -223,11 +270,13 @@ private:
     ChannelConfig     _pendingConfig[CHANNEL_COUNT];
     ChannelDailyState _dailyState[CHANNEL_COUNT];
     ChannelCalculated _calculated[CHANNEL_COUNT];
+    ContainerVolume   _containerVolume[CHANNEL_COUNT];
     
     // Empty config for invalid channel access
     static ChannelConfig _emptyConfig;
     static ChannelDailyState _emptyDailyState;
     static ChannelCalculated _emptyCalculated;
+    static ContainerVolume _emptyContainerVolume;
     
     /**
      * Zapisz pending config do FRAM i oznacz jako has_pending
@@ -239,6 +288,7 @@ private:
      */
     void _updateConfigCRC(ChannelConfig* cfg);
     void _updateDailyStateCRC(ChannelDailyState* state);
+    void _updateContainerVolumeCRC(ContainerVolume* volume);
 };
 
 // ============================================================================

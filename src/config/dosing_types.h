@@ -391,6 +391,144 @@ struct CriticalErrorState {
 static_assert(sizeof(CriticalErrorState) == 32, "CriticalErrorState must be 32 bytes");
 
 // ============================================================================
+// CONTAINER VOLUME (pojemność pojemnika per kanał)
+// Rozmiar: 8 bajtów (packed)
+// ============================================================================
+
+#pragma pack(push, 1)
+
+// /**
+//  * Pojemność i pozostała ilość płynu w pojemniku
+//  * Przechowywana w FRAM per kanał
+//  * Wartości przechowywane jako uint16_t × 10 (0.1ml precision)
+//  */
+// struct ContainerVolume {
+//     uint16_t container_ml;      // Pojemność pojemnika × 10 (max 6553.5ml)
+//     uint16_t remaining_ml;      // Pozostała ilość × 10
+//     uint32_t crc32;             // CRC32 validation
+    
+//     // ------------------------------------------
+//     // Metody pomocnicze (inline)
+//     // ------------------------------------------
+    
+//     inline float getContainerMl() const {
+//         return container_ml / 10.0f;
+//     }
+    
+//     inline float getRemainingMl() const {
+//         return remaining_ml / 10.0f;
+//     }
+    
+//     inline void setContainerMl(float ml) {
+//         container_ml = (uint16_t)(ml * 10.0f);
+//     }
+    
+//     inline void setRemainingMl(float ml) {
+//         remaining_ml = (uint16_t)(ml * 10.0f);
+//     }
+    
+//     inline uint8_t getRemainingPercent() const {
+//         if (container_ml == 0) return 0;
+//         return (uint8_t)((remaining_ml * 100UL) / container_ml);
+//     }
+    
+//     inline bool isLowVolume(uint8_t threshold_pct = LOW_VOLUME_THRESHOLD_PCT) const {
+//         return getRemainingPercent() < threshold_pct;
+//     }
+    
+//     inline void refill() {
+//         remaining_ml = container_ml;
+//     }
+    
+//     inline void deduct(float ml) {
+//         uint16_t deduct_val = (uint16_t)(ml * 10.0f);
+//         if (deduct_val >= remaining_ml) {
+//             remaining_ml = 0;
+//         } else {
+//             remaining_ml -= deduct_val;
+//         }
+//     }
+    
+//     inline void reset() {
+//         container_ml = CONTAINER_DEFAULT_ML * 10;
+//         remaining_ml = container_ml;
+//     }
+// };
+
+// #pragma pack(pop)
+
+// static_assert(sizeof(ContainerVolume) == 8, "ContainerVolume must be 8 bytes");
+
+// ============================================================================
+// CONTAINER VOLUME (pojemność pojemnika per kanał)
+// Rozmiar: 8 bajtów (packed)
+// ============================================================================
+
+#pragma pack(push, 1)
+
+/**
+ * Pojemność i pozostała ilość płynu w pojemniku
+ * Przechowywana w FRAM per kanał
+ * Wartości przechowywane jako uint16_t × 10 (0.1ml precision)
+ */
+struct ContainerVolume {
+    uint16_t container_ml;      // Pojemność pojemnika × 10 (max 6553.5ml)
+    uint16_t remaining_ml;      // Pozostała ilość × 10
+    uint32_t crc32;             // CRC32 validation
+    
+    // ------------------------------------------
+    // Metody pomocnicze (inline)
+    // ------------------------------------------
+    
+    inline float getContainerMl() const {
+        return container_ml / 10.0f;
+    }
+    
+    inline float getRemainingMl() const {
+        return remaining_ml / 10.0f;
+    }
+    
+    inline void setContainerMl(float ml) {
+        container_ml = (uint16_t)(ml * 10.0f);
+    }
+    
+    inline void setRemainingMl(float ml) {
+        remaining_ml = (uint16_t)(ml * 10.0f);
+    }
+    
+    inline uint8_t getRemainingPercent() const {
+        if (container_ml == 0) return 0;
+        return (uint8_t)((remaining_ml * 100UL) / container_ml);
+    }
+    
+    inline bool isLowVolume(uint8_t threshold_pct = LOW_VOLUME_THRESHOLD_PCT) const {
+        return getRemainingPercent() < threshold_pct;
+    }
+    
+    inline void refill() {
+        remaining_ml = container_ml;
+    }
+    
+    inline void deduct(float ml) {
+        uint16_t deduct_val = (uint16_t)(ml * 10.0f);
+        if (deduct_val >= remaining_ml) {
+            remaining_ml = 0;
+        } else {
+            remaining_ml -= deduct_val;
+        }
+    }
+    
+    inline void reset() {
+        container_ml = CONTAINER_DEFAULT_ML * 10;
+        remaining_ml = container_ml;
+    }
+};
+
+#pragma pack(pop)
+
+static_assert(sizeof(ContainerVolume) == 8, "ContainerVolume must be 8 bytes");
+
+// ============================================================================
 // UTILITY FUNCTIONS (deklaracje)
 // ============================================================================
 

@@ -80,6 +80,12 @@ public:
     
     bool readSystemState(SystemState* state);
     bool writeSystemState(const SystemState* state);
+
+    // --- Container Volume ---
+    
+    bool readContainerVolume(uint8_t channel, ContainerVolume* volume);
+    bool writeContainerVolume(uint8_t channel, const ContainerVolume* volume);
+    bool initializeContainerVolumes();
     
     // // --- Error State ---
     

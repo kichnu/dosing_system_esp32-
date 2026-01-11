@@ -194,6 +194,9 @@ bool FramController::_initializeEmpty() {
     // Clear error state
     // if (!clearErrorState()) return false;
     
+    // Initialize container volumes
+    if (!initializeContainerVolumes()) return false;
+    
     return true;
 }
 
@@ -460,4 +463,37 @@ void FramController::dumpSection(uint16_t address, size_t length) {
         }
         Serial.println("|");
     }
+}
+
+// ============================================================================
+// CONTAINER VOLUME
+// ============================================================================
+
+bool FramController::readContainerVolume(uint8_t channel, ContainerVolume* volume) {
+    if (channel >= CHANNEL_COUNT) return false;
+    
+    uint16_t addr = FRAM_ADDR_CONTAINER_CH(channel);
+    return readBytes(addr, volume, sizeof(ContainerVolume));
+}
+
+bool FramController::writeContainerVolume(uint8_t channel, const ContainerVolume* volume) {
+    if (channel >= CHANNEL_COUNT) return false;
+    
+    uint16_t addr = FRAM_ADDR_CONTAINER_CH(channel);
+    return writeBytes(addr, volume, sizeof(ContainerVolume));
+}
+
+bool FramController::initializeContainerVolumes() {
+    ContainerVolume emptyVolume;
+    emptyVolume.reset();
+    emptyVolume.crc32 = calculateCRC32(&emptyVolume, sizeof(ContainerVolume) - sizeof(uint32_t));
+    
+    for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
+        if (!writeContainerVolume(i, &emptyVolume)) {
+            return false;
+        }
+    }
+    
+    Serial.println(F("[FRAM] Container volumes initialized"));
+    return true;
 }

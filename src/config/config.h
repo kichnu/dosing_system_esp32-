@@ -125,6 +125,22 @@ static const uint8_t VALIDATE_PINS[4] = {
 #define MAX_DOSING_RATE             5.0f    // Maksymalna wydajność
 
 // ============================================================================
+// CONTAINER VOLUME TRACKING
+// ============================================================================
+#define CONTAINER_MIN_ML            100     // Minimalna pojemność pojemnika (ml)
+#define CONTAINER_MAX_ML            5000    // Maksymalna pojemność pojemnika (ml)
+#define CONTAINER_DEFAULT_ML        1000    // Domyślna pojemność (ml)
+#define LOW_VOLUME_THRESHOLD_PCT    10      // Próg ostrzeżenia o niskim stanie (%)
+
+// ============================================================================
+// CONTAINER VOLUME TRACKING
+// ============================================================================
+#define CONTAINER_MIN_ML            100     // Minimalna pojemność pojemnika (ml)
+#define CONTAINER_MAX_ML            5000    // Maksymalna pojemność pojemnika (ml)
+#define CONTAINER_DEFAULT_ML        1000    // Domyślna pojemność (ml)
+#define LOW_VOLUME_THRESHOLD_PCT    10      // Próg ostrzeżenia o niskim stanie (%)
+
+// ============================================================================
 // VPS LOGGING
 // ============================================================================
 #define VPS_LOG_WINDOW_START_HOUR   0       // Początek okna logowania (00:00)

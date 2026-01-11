@@ -26,26 +26,32 @@
 #define FRAM_MAGIC_NUMBER       0x444F5A41  // "DOZA" in ASCII
 #define FRAM_LAYOUT_VERSION     3           // Bumped for new layout
 
+// Aktualizacja RESERVED (po Container Volume)
+#undef FRAM_ADDR_RESERVED
+#undef FRAM_SIZE_RESERVED
+#define FRAM_ADDR_RESERVED              0x5370
+#define FRAM_SIZE_RESERVED              (FRAM_SIZE_BYTES - FRAM_ADDR_RESERVED)  // ~11,408 B wolne
+
 // ============================================================================
-// ZAKTUALIZOWANA MAPA PAMIĘCI (v4)
+// ZAKTUALIZOWANA MAPA PAMIĘCI (v5 - z Container Volume)
 // ============================================================================
 // Sekcja              | Adres      | Rozmiar   | Opis
 // --------------------|------------|-----------|--------------------------------
 // HEADER              | 0x0000     | 32 B      | Magic, version, checksum
-// CREDENTIALS         | 0x0020     | 1024 B    | Encrypted WiFi (DOLEWKA compat)
+// CREDENTIALS         | 0x0020     | 1024 B    | Encrypted WiFi
 // SYSTEM_STATE        | 0x0420     | 32 B      | Globalny stan systemu
-// ACTIVE_CONFIG       | 0x0440     | 192 B     | Aktywna konfiguracja (6 × 32 B)
-// PENDING_CONFIG      | 0x0500     | 192 B     | Oczekująca konfiguracja (6 × 32 B)
-// DAILY_STATE         | 0x05C0     | 144 B     | Stan dzienny (6 × 24 B)
+// ACTIVE_CONFIG       | 0x0440     | 192 B     | Aktywna konfiguracja (6 × 32B)
+// PENDING_CONFIG      | 0x0500     | 192 B     | Oczekująca konfiguracja
+// DAILY_STATE         | 0x05C0     | 144 B     | Stan dzienny (6 × 24B)
 // CRITICAL_ERROR      | 0x0650     | 32 B      | Błąd krytyczny
 // AUTH_DATA           | 0x0670     | 64 B      | Hash hasła admin
 // SESSION_DATA        | 0x06B0     | 128 B     | Dane sesji
-// VPS_LOG_BUFFER      | 0x0730     | 208 B     | [LEGACY - może zostać usunięte]
-// --- DAILY LOG SECTION (0x0800) ---
+// VPS_LOG_BUFFER      | 0x0730     | 208 B     | [LEGACY]
 // DAILY_LOG_HEADER_A  | 0x0800     | 32 B      | Ring header (primary)
 // DAILY_LOG_HEADER_B  | 0x0820     | 32 B      | Ring header (backup)
-// DAILY_LOG_ENTRIES   | 0x0840     | 19,200 B  | Ring buffer (100 × 192 B)
-// RESERVED            | 0x5340     | ~11,456 B | Wolne na przyszłość
+// DAILY_LOG_ENTRIES   | 0x0840     | 19,200 B  | Ring buffer (100 × 192B)
+// CONTAINER_VOLUME    | 0x5340     | 48 B      | Pojemność pojemników (6 × 8B) [NEW]
+// RESERVED            | 0x5370     | ~11,408 B | Wolne na przyszłość
 // ============================================================================
 
 #define FRAM_ADDR_HEADER            0x0000
@@ -159,12 +165,17 @@ static_assert(sizeof(AuthData) == FRAM_SIZE_AUTH_DATA, "AuthData size mismatch")
 #define FRAM_ADDR_SESSION_DATA      0x06B0
 #define FRAM_SIZE_SESSION_DATA      128
 
-// Struktura sesji zdefiniowana w session_manager.h
+// ----------------------------------------------------------------------------
+// CONTAINER VOLUME (0x0700 - 0x072F)
+// Pojemność i pozostała ilość płynu w pojemnikach (6 kanałów × 8B)
+// ----------------------------------------------------------------------------
+#define FRAM_ADDR_CONTAINER_VOLUME      0x0700
+#define FRAM_SIZE_CONTAINER_VOLUME      48      // 6 × 8B
 
-// ----------------------------------------------------------------------------
-// VPS LOG BUFFER (0x06F0 - 0x07EF)
-// Bufor na nieudane logi VPS (do ponowienia)
-// ----------------------------------------------------------------------------
+#define FRAM_ADDR_CONTAINER_CH(n)       (FRAM_ADDR_CONTAINER_VOLUME + ((n) * sizeof(ContainerVolume)))
+
+#pragma pack(push, 1)
+
 #define FRAM_ADDR_VPS_LOG_BUFFER    0x0730
 #define FRAM_SIZE_VPS_LOG_BUFFER    256
 
@@ -188,6 +199,15 @@ struct VpsLogBuffer {
 #pragma pack(pop)
 
 static_assert(sizeof(VpsLogBuffer) <= FRAM_SIZE_VPS_LOG_BUFFER, "VpsLogBuffer too large");
+
+// ----------------------------------------------------------------------------
+// CONTAINER VOLUME (0x5340 - 0x536F)
+// Pojemność i pozostała ilość płynu w pojemnikach per kanał
+// ----------------------------------------------------------------------------
+#define FRAM_ADDR_CONTAINER_VOLUME      0x5340
+#define FRAM_SIZE_CONTAINER_VOLUME      48      // 6 kanałów × 8B = 48B
+
+#define FRAM_ADDR_CONTAINER_CH(n)       (FRAM_ADDR_CONTAINER_VOLUME + ((n) * 8))
 
 // ----------------------------------------------------------------------------
 // RESERVED SPACE (0x07F0 - 0x7FFF)
@@ -363,8 +383,8 @@ void framDumpSection(uint16_t address, size_t length);
 // Aktualizacja RESERVED (po Daily Log)
 #undef FRAM_ADDR_RESERVED
 #undef FRAM_SIZE_RESERVED
-#define FRAM_ADDR_RESERVED              0x5340
-#define FRAM_SIZE_RESERVED              (FRAM_SIZE_BYTES - FRAM_ADDR_RESERVED)  // ~11.4 KB wolne
+#define FRAM_ADDR_RESERVED              0x5370
+#define FRAM_SIZE_RESERVED              (FRAM_SIZE_BYTES - FRAM_ADDR_RESERVED)  // ~11,408 B wolne
 
 
 

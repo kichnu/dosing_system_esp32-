@@ -11,6 +11,7 @@ ChannelManager channelManager;
 ChannelConfig ChannelManager::_emptyConfig = {};
 ChannelDailyState ChannelManager::_emptyDailyState = {};
 ChannelCalculated ChannelManager::_emptyCalculated = {};
+ContainerVolume ChannelManager::_emptyContainerVolume = {};
 
 // ============================================================================
 // INITIALIZATION
@@ -34,6 +35,15 @@ bool ChannelManager::begin() {
     
     // Recalculate all channels
     recalculateAll();
+
+    // Load container volumes
+    if (!reloadContainerVolumes()) {
+        Serial.println(F("[CH_MGR] WARNING: Failed to load container volumes, using defaults"));
+        // Initialize with defaults
+        for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
+            _containerVolume[i].reset();
+        }
+    }
     
     _initialized = true;
     Serial.println(F("[CH_MGR] Ready"));
@@ -62,6 +72,11 @@ const ChannelDailyState& ChannelManager::getDailyState(uint8_t channel) const {
 const ChannelCalculated& ChannelManager::getCalculated(uint8_t channel) const {
     if (channel >= CHANNEL_COUNT) return _emptyCalculated;
     return _calculated[channel];
+}
+
+const ContainerVolume& ChannelManager::getContainerVolume(uint8_t channel) const {
+    if (channel >= CHANNEL_COUNT) return _emptyContainerVolume;
+    return _containerVolume[channel];
 }
 
 ChannelState ChannelManager::getChannelState(uint8_t channel) const {
@@ -329,7 +344,15 @@ bool ChannelManager::markEventCompleted(uint8_t channel, uint8_t hour, float dos
     
     _updateDailyStateCRC(&_dailyState[channel]);
     
-    return framController.writeDailyState(channel, &_dailyState[channel]);
+    if (!framController.writeDailyState(channel, &_dailyState[channel])) {
+        return false;
+    }
+    
+    // Deduct from container volume
+    deductVolume(channel, dosed_ml);
+    
+    return true;
+    
 }
 
 bool ChannelManager::markEventFailed(uint8_t channel, uint8_t hour) {
@@ -429,6 +452,128 @@ uint8_t ChannelManager::getNextEventHour(uint8_t channel, uint8_t currentHour) c
     }
     
     return 255; // No more events today
+}
+
+// ============================================================================
+// CONTAINER VOLUME
+// ============================================================================
+
+bool ChannelManager::setContainerCapacity(uint8_t channel, float capacity_ml) {
+    if (channel >= CHANNEL_COUNT) return false;
+    
+    // Clamp to valid range
+    if (capacity_ml < CONTAINER_MIN_ML) capacity_ml = CONTAINER_MIN_ML;
+    if (capacity_ml > CONTAINER_MAX_ML) capacity_ml = CONTAINER_MAX_ML;
+    
+    _containerVolume[channel].setContainerMl(capacity_ml);
+    
+    // If remaining > new capacity, adjust it
+    if (_containerVolume[channel].remaining_ml > _containerVolume[channel].container_ml) {
+        _containerVolume[channel].remaining_ml = _containerVolume[channel].container_ml;
+    }
+    
+    _updateContainerVolumeCRC(&_containerVolume[channel]);
+    
+    Serial.printf("[CH_MGR] CH%d container capacity set to %.1f ml\n", channel, capacity_ml);
+    
+    return framController.writeContainerVolume(channel, &_containerVolume[channel]);
+}
+
+bool ChannelManager::refillContainer(uint8_t channel) {
+    if (channel >= CHANNEL_COUNT) return false;
+    
+    _containerVolume[channel].refill();
+    _updateContainerVolumeCRC(&_containerVolume[channel]);
+    
+    Serial.printf("[CH_MGR] CH%d refilled to %.1f ml\n", 
+                  channel, _containerVolume[channel].getContainerMl());
+    
+    return framController.writeContainerVolume(channel, &_containerVolume[channel]);
+}
+
+bool ChannelManager::deductVolume(uint8_t channel, float ml) {
+    if (channel >= CHANNEL_COUNT) return false;
+    if (ml <= 0) return true;  // Nothing to deduct
+    
+    float before = _containerVolume[channel].getRemainingMl();
+    _containerVolume[channel].deduct(ml);
+    _updateContainerVolumeCRC(&_containerVolume[channel]);
+    
+    float after = _containerVolume[channel].getRemainingMl();
+    
+    Serial.printf("[CH_MGR] CH%d volume: %.1f -> %.1f ml (deducted %.2f ml)\n", 
+                  channel, before, after, ml);
+    
+    // Check low volume warning
+    if (_containerVolume[channel].isLowVolume()) {
+        Serial.printf("[CH_MGR] WARNING: CH%d low volume! %.1f ml remaining (%.0f%%)\n",
+                      channel, after, (float)_containerVolume[channel].getRemainingPercent());
+    }
+    
+    return framController.writeContainerVolume(channel, &_containerVolume[channel]);
+}
+
+bool ChannelManager::isLowVolume(uint8_t channel) const {
+    if (channel >= CHANNEL_COUNT) return false;
+    return _containerVolume[channel].isLowVolume();
+}
+
+float ChannelManager::getRemainingVolume(uint8_t channel) const {
+    if (channel >= CHANNEL_COUNT) return 0;
+    return _containerVolume[channel].getRemainingMl();
+}
+
+float ChannelManager::getContainerCapacity(uint8_t channel) const {
+    if (channel >= CHANNEL_COUNT) return 0;
+    return _containerVolume[channel].getContainerMl();
+}
+
+float ChannelManager::getDaysRemaining(uint8_t channel) const {
+    if (channel >= CHANNEL_COUNT) return 0;
+    
+    const ChannelConfig& cfg = _activeConfig[channel];
+    
+    // If no daily dose configured, infinite days
+    if (cfg.daily_dose_ml <= 0) return 999.0f;
+    
+    // If no active days, infinite
+    uint8_t activeDays = cfg.getActiveDaysCount();
+    if (activeDays == 0) return 999.0f;
+    
+    float remaining = _containerVolume[channel].getRemainingMl();
+    
+    // Average daily consumption (accounting for active days per week)
+    float avgDailyConsumption = cfg.daily_dose_ml * ((float)activeDays / 7.0f);
+    
+    if (avgDailyConsumption <= 0) return 999.0f;
+    
+    return remaining / avgDailyConsumption;
+}
+
+bool ChannelManager::reloadContainerVolumes() {
+    Serial.println(F("[CH_MGR] Loading container volumes..."));
+    
+    for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
+        if (!framController.readContainerVolume(i, &_containerVolume[i])) {
+            Serial.printf("[CH_MGR] Failed to read container volume CH%d\n", i);
+            return false;
+        }
+        
+        // Validate CRC
+        uint32_t calc_crc = FramController::calculateCRC32(
+            &_containerVolume[i], 
+            sizeof(ContainerVolume) - sizeof(uint32_t)
+        );
+        
+        if (calc_crc != _containerVolume[i].crc32) {
+            Serial.printf("[CH_MGR] CH%d container volume CRC mismatch, resetting\n", i);
+            _containerVolume[i].reset();
+            _updateContainerVolumeCRC(&_containerVolume[i]);
+            framController.writeContainerVolume(i, &_containerVolume[i]);
+        }
+    }
+    
+    return true;
 }
 
 // ============================================================================
@@ -549,6 +694,10 @@ void ChannelManager::_updateDailyStateCRC(ChannelDailyState* state) {
     state->crc32 = FramController::calculateCRC32(state, sizeof(ChannelDailyState) - sizeof(uint32_t));
 }
 
+void ChannelManager::_updateContainerVolumeCRC(ContainerVolume* volume) {
+    volume->crc32 = FramController::calculateCRC32(volume, sizeof(ContainerVolume) - sizeof(uint32_t));
+}
+
 // ============================================================================
 // DEBUG
 // ============================================================================
@@ -587,6 +736,13 @@ void ChannelManager::printChannelInfo(uint8_t channel) const {
     Serial.printf("  Completed:      %d events\n", calc.completed_today_count);
     Serial.printf("  Dosed:          %.2f ml\n", state.today_added_ml);
     Serial.printf("  Remaining:      %.2f ml\n", calc.today_remaining_ml);
+
+    const ContainerVolume& vol = _containerVolume[channel];
+    Serial.println(F("\nContainer:"));
+    Serial.printf("  Capacity:     %.1f ml\n", vol.getContainerMl());
+    Serial.printf("  Remaining:    %.1f ml (%d%%)\n", vol.getRemainingMl(), vol.getRemainingPercent());
+    Serial.printf("  Low warning:  %s\n", vol.isLowVolume() ? "YES!" : "no");
+    Serial.printf("  Days left:    %.1f\n", getDaysRemaining(channel));
     
     Serial.println();
 }
@@ -611,7 +767,4 @@ void ChannelManager::printAllChannels() const {
                       cfg.daily_dose_ml,
                       cfg.dosing_rate);
     }
-    
-    Serial.println(F("└────┴──────────────┴────────┴────────┴──────────┴────────┘"));
-    Serial.println();
 }
