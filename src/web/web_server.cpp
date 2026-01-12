@@ -562,6 +562,8 @@ void handleApiDailyReset(AsyncWebServerRequest* request) {
 //     request->send(200, "application/json", response);
 // }
 
+// #############################################################################################################################################################
+
 void handleApiDailyLogs(AsyncWebServerRequest* request) {
     if (!isAuthenticated(request)) {
         request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
@@ -582,22 +584,36 @@ void handleApiDailyLogs(AsyncWebServerRequest* request) {
     doc["totalWritten"] = stats.total_written;
     doc["hasCurrentDay"] = stats.has_current_day;
     
-    // Lista wpisów
+    // Lista wpisów (ostatnie 30)
     JsonArray entries = doc["entries"].to<JsonArray>();
     
-    // Index 0: bieżący dzień (jeśli istnieje)
-    DayLogEntry currentEntry;
-    if (g_dailyLog->getCurrentEntry(currentEntry) == DailyLogResult::OK) {
+    uint8_t maxEntries = 30;
+    uint8_t totalCount = stats.count;
+    uint8_t toFetch = (totalCount < maxEntries) ? totalCount : maxEntries;
+    
+    // Index 0 = current day, Index 1+ = finalized (zgodnie z handleApiDailyLogEntry)
+    for (uint8_t i = 0; i < toFetch; i++) {
+        DayLogEntry entry;
+        DailyLogResult res;
+        
+        if (i == 0) {
+            res = g_dailyLog->getCurrentEntry(entry);
+        } else {
+            res = g_dailyLog->getEntry(i - 1, entry);
+        }
+        
+        if (res != DailyLogResult::OK) continue;
+        
         JsonObject e = entries.add<JsonObject>();
-        e["index"] = 0;
-        e["utcDay"] = currentEntry.utc_day;
-        e["dayOfWeek"] = currentEntry.day_of_week;
-        e["flags"] = currentEntry.flags;
-        e["channelCount"] = currentEntry.channel_count;
-        e["isCurrent"] = true;
+        e["index"] = i;
+        e["utcDay"] = entry.utc_day;
+        e["dayOfWeek"] = entry.day_of_week;
+        e["flags"] = entry.flags;
+        e["channelCount"] = entry.channel_count;
+        e["isCurrent"] = (i == 0 && !entry.isFinalized());
         
         // Agregowany status
-        DayChannelStatus aggStatus = currentEntry.getAggregatedStatus();
+        DayChannelStatus aggStatus = entry.getAggregatedStatus();
         const char* statusStr;
         switch (aggStatus) {
             case DayChannelStatus::OK: statusStr = "ok"; break;
@@ -613,66 +629,85 @@ void handleApiDailyLogs(AsyncWebServerRequest* request) {
         float totalDosed = 0;
         
         for (int ch = 0; ch < DAILY_LOG_MAX_CHANNELS; ch++) {
-            if (currentEntry.channels[ch].status == DayChannelStatus::OK) completedChannels++;
-            if (currentEntry.channels[ch].status == DayChannelStatus::ERROR) errorChannels++;
-            totalDosed += currentEntry.channels[ch].getDoseActualMl();
+            if (entry.channels[ch].status == DayChannelStatus::OK) completedChannels++;
+            if (entry.channels[ch].status == DayChannelStatus::ERROR) errorChannels++;
+            totalDosed += entry.channels[ch].getDoseActualMl();
         }
         
         e["completedChannels"] = completedChannels;
         e["errorChannels"] = errorChannels;
         e["totalDosedMl"] = totalDosed;
-        e["powerCycles"] = currentEntry.power_cycles;
-    }
-    
-    // Index 1+: sfinalizowane wpisy
-    uint8_t maxEntries = 29;  // 30 - 1 (bieżący)
-    uint8_t finalizedCount = g_dailyLog->getFinalizedCount();
-    uint8_t toFetch = (finalizedCount < maxEntries) ? finalizedCount : maxEntries;
-    
-    for (uint8_t i = 0; i < toFetch; i++) {
-        DayLogEntry entry;
-        if (g_dailyLog->getEntry(i, entry) == DailyLogResult::OK) {
-            JsonObject e = entries.add<JsonObject>();
-            e["index"] = i + 1;  // Przesunięcie o 1
-            e["utcDay"] = entry.utc_day;
-            e["dayOfWeek"] = entry.day_of_week;
-            e["flags"] = entry.flags;
-            e["channelCount"] = entry.channel_count;
-            e["isCurrent"] = false;
-            
-            // Agregowany status
-            DayChannelStatus aggStatus = entry.getAggregatedStatus();
-            const char* statusStr;
-            switch (aggStatus) {
-                case DayChannelStatus::OK: statusStr = "ok"; break;
-                case DayChannelStatus::PARTIAL: statusStr = "partial"; break;
-                case DayChannelStatus::ERROR: statusStr = "error"; break;
-                default: statusStr = "inactive"; break;
-            }
-            e["status"] = statusStr;
-            
-            // Podsumowanie kanałów
-            uint8_t completedChannels = 0;
-            uint8_t errorChannels = 0;
-            float totalDosed = 0;
-            
-            for (int ch = 0; ch < DAILY_LOG_MAX_CHANNELS; ch++) {
-                if (entry.channels[ch].status == DayChannelStatus::OK) completedChannels++;
-                if (entry.channels[ch].status == DayChannelStatus::ERROR) errorChannels++;
-                totalDosed += entry.channels[ch].getDoseActualMl();
-            }
-            
-            e["completedChannels"] = completedChannels;
-            e["errorChannels"] = errorChannels;
-            e["totalDosedMl"] = totalDosed;
-            e["powerCycles"] = entry.power_cycles;
-        }
+        e["powerCycles"] = entry.power_cycles;
     }
     
     String response;
     serializeJson(doc, response);
     request->send(200, "application/json", response);
 }
+
+// ############################################################################################################
+
+// void handleApiDailyLogs(AsyncWebServerRequest* request) {
+//     if (!isAuthenticated(request)) {
+//         request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+//         return;
+//     }
+    
+//     if (!g_dailyLog || !g_dailyLog->isInitialized()) {
+//         request->send(503, "application/json", "{\"error\":\"Daily log not initialized\"}");
+//         return;
+//     }
+    
+//     JsonDocument doc;
+    
+//     // Stats
+//     DailyLogStats stats = g_dailyLog->getStats();
+//     doc["count"] = stats.count;
+//     doc["capacity"] = stats.capacity;
+//     doc["totalWritten"] = stats.total_written;
+//     doc["hasCurrentDay"] = stats.has_current_day;
+//     doc["debug_finalizedCount"] = g_dailyLog->getFinalizedCount();
+    
+//     // Lista wpisów
+//     JsonArray entries = doc["entries"].to<JsonArray>();
+    
+//     // Index 0 = current
+//     DayLogEntry currentEntry;
+//     if (g_dailyLog->getCurrentEntry(currentEntry) == DailyLogResult::OK) {
+//         JsonObject e = entries.add<JsonObject>();
+//         e["index"] = 0;
+//         e["utcDay"] = currentEntry.utc_day;
+//         e["dayOfWeek"] = currentEntry.day_of_week;
+//         e["isCurrent"] = true;
+//         e["status"] = "current";
+//         e["totalDosedMl"] = 0;
+//         for (int ch = 0; ch < DAILY_LOG_MAX_CHANNELS; ch++) {
+//             e["totalDosedMl"] = (float)e["totalDosedMl"] + currentEntry.channels[ch].getDoseActualMl();
+//         }
+//     }
+    
+//     // Debug: próbuj pobrać pierwsze 5 wpisów i pokaż wynik
+//     JsonArray debug = doc["debug_getEntry"].to<JsonArray>();
+//     for (uint8_t i = 0; i < 5; i++) {
+//         DayLogEntry entry;
+//         DailyLogResult res = g_dailyLog->getEntry(i, entry);
+//         JsonObject d = debug.add<JsonObject>();
+//         d["i"] = i;
+//         d["result"] = static_cast<int>(res);
+//         if (res == DailyLogResult::OK) {
+//             d["utcDay"] = entry.utc_day;
+//             d["isFinalized"] = entry.isFinalized();
+//         }
+//     }
+
+    
+    
+//     String response;
+//     serializeJson(doc, response);
+//     request->send(200, "application/json", response);
+
+    
+// }
 
 // ============================================================================
 // API: DAILY LOG ENTRY - Szczegóły pojedynczego wpisu
@@ -706,10 +741,22 @@ void handleApiDailyLogEntry(AsyncWebServerRequest* request) {
         result = g_dailyLog->getEntry(index - 1, entry);
     }
     
+    // if (result != DailyLogResult::OK) {
+    //     request->send(404, "application/json", "{\"error\":\"Entry not found\"}");
+    //     return;
+    // }
+
     if (result != DailyLogResult::OK) {
-        request->send(404, "application/json", "{\"error\":\"Entry not found\"}");
-        return;
-    }
+    JsonDocument errDoc;
+    errDoc["error"] = "Entry not found";
+    errDoc["debug_index"] = index;
+    errDoc["debug_result"] = static_cast<int>(result);
+    errDoc["debug_finalizedCount"] = g_dailyLog->getFinalizedCount();
+    String response;
+    serializeJson(errDoc, response);
+    request->send(404, "application/json", response);
+    return;
+}
     
     JsonDocument doc;
     
@@ -935,6 +982,32 @@ void handleApiRefill(AsyncWebServerRequest* request) {
                   channel, success ? "OK" : "FAILED", vol.getRemainingMl());
 }
 
+// 333###############################################################################################################################################
+
+
+void handleResetDailyLog(AsyncWebServerRequest* request) {
+    if (!isAuthenticated(request)) {
+        request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+        return;
+    }
+    
+    if (g_dailyLog) {
+        auto result = g_dailyLog->reset();
+        if (result == DailyLogResult::OK) {
+            request->send(200, "application/json", "{\"success\":true,\"message\":\"Daily log reset\"}");
+        } else {
+            request->send(500, "application/json", "{\"error\":\"Reset failed\"}");
+        }
+    } else {
+        request->send(503, "application/json", "{\"error\":\"Daily log not available\"}");
+    }
+}
+
+
+// 333###############################################################################################################################################
+
+
+
 void handleNotFound(AsyncWebServerRequest* request) {
     request->send(404, "text/plain", "Not Found");
 }
@@ -982,6 +1055,19 @@ void initWebServer() {
     
     Serial.println(F("[WEB] Server started on port 80"));
     Serial.printf("[WEB] Dashboard: http://%s/\n", WiFi.localIP().toString().c_str());
+
+
+
+
+
+
+
+
+
+
+
+    server.on("/api/reset-daily-log", HTTP_POST, handleResetDailyLog);
+
 }
 
 bool isWebServerRunning() {

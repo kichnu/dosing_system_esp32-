@@ -26,12 +26,6 @@
 #define FRAM_MAGIC_NUMBER       0x444F5A41  // "DOZA" in ASCII
 #define FRAM_LAYOUT_VERSION     3           // Bumped for new layout
 
-// Aktualizacja RESERVED (po Container Volume)
-#undef FRAM_ADDR_RESERVED
-#undef FRAM_SIZE_RESERVED
-#define FRAM_ADDR_RESERVED              0x5370
-#define FRAM_SIZE_RESERVED              (FRAM_SIZE_BYTES - FRAM_ADDR_RESERVED)  // ~11,408 B wolne
-
 // ============================================================================
 // ZAKTUALIZOWANA MAPA PAMIĘCI (v5 - z Container Volume)
 // ============================================================================
@@ -46,12 +40,12 @@
 // CRITICAL_ERROR      | 0x0650     | 32 B      | Błąd krytyczny
 // AUTH_DATA           | 0x0670     | 64 B      | Hash hasła admin
 // SESSION_DATA        | 0x06B0     | 128 B     | Dane sesji
-// VPS_LOG_BUFFER      | 0x0730     | 208 B     | [LEGACY]
+// VPS_LOG_BUFFER      | 0x0730     | 48 B      | Container Volume (6 × 8B) [REUSED]
+// (free)              | 0x0760     | 160 B     | Wolne w legacy VPS space
 // DAILY_LOG_HEADER_A  | 0x0800     | 32 B      | Ring header (primary)
 // DAILY_LOG_HEADER_B  | 0x0820     | 32 B      | Ring header (backup)
-// DAILY_LOG_ENTRIES   | 0x0840     | 19,200 B  | Ring buffer (100 × 192B)
-// CONTAINER_VOLUME    | 0x5340     | 48 B      | Pojemność pojemników (6 × 8B) [NEW]
-// RESERVED            | 0x5370     | ~11,408 B | Wolne na przyszłość
+// DAILY_LOG_ENTRIES   | 0x0840     | 43,200 B  | Ring buffer (225 × 192B)
+// (end)               | 0xB100     |           |
 // ============================================================================
 
 #define FRAM_ADDR_HEADER            0x0000
@@ -169,36 +163,16 @@ static_assert(sizeof(AuthData) == FRAM_SIZE_AUTH_DATA, "AuthData size mismatch")
 // CONTAINER VOLUME (0x0700 - 0x072F)
 // Pojemność i pozostała ilość płynu w pojemnikach (6 kanałów × 8B)
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_CONTAINER_VOLUME      0x0700
-#define FRAM_SIZE_CONTAINER_VOLUME      48      // 6 × 8B
 
-#define FRAM_ADDR_CONTAINER_CH(n)       (FRAM_ADDR_CONTAINER_VOLUME + ((n) * sizeof(ContainerVolume)))
+
+#define FRAM_SIZE_CONTAINER_ENTRY       8       // sizeof(ContainerVolume)
+
 
 #pragma pack(push, 1)
-
 #define FRAM_ADDR_VPS_LOG_BUFFER    0x0730
-#define FRAM_SIZE_VPS_LOG_BUFFER    256
+#define FRAM_SIZE_VPS_LOG_BUFFER    208
 
 #pragma pack(push, 1)
-
-struct VpsLogBuffer {
-    uint8_t  pending_logs;          // Liczba oczekujących logów (0-3)
-    uint8_t  _reserved[3];
-    
-    // Maksymalnie 3 zaległe logi
-    struct {
-        uint32_t utc_day;           // Dzień logu
-        uint8_t  payload[72];       // Skompresowany payload
-        uint8_t  retry_count;       // Liczba prób
-        uint8_t  _pad[3];
-    } entries[3];
-    
-    uint32_t crc32;
-};
-
-#pragma pack(pop)
-
-static_assert(sizeof(VpsLogBuffer) <= FRAM_SIZE_VPS_LOG_BUFFER, "VpsLogBuffer too large");
 
 // ----------------------------------------------------------------------------
 // CONTAINER VOLUME (0x5340 - 0x536F)
@@ -208,22 +182,6 @@ static_assert(sizeof(VpsLogBuffer) <= FRAM_SIZE_VPS_LOG_BUFFER, "VpsLogBuffer to
 #define FRAM_SIZE_CONTAINER_VOLUME      48      // 6 kanałów × 8B = 48B
 
 #define FRAM_ADDR_CONTAINER_CH(n)       (FRAM_ADDR_CONTAINER_VOLUME + ((n) * 8))
-
-// ----------------------------------------------------------------------------
-// RESERVED SPACE (0x07F0 - 0x7FFF)
-// ----------------------------------------------------------------------------
-#define FRAM_ADDR_RESERVED          0x0830
-#define FRAM_SIZE_RESERVED          (FRAM_SIZE_BYTES - FRAM_ADDR_RESERVED)
-
-// // DAILY LOG  ADDRESES 
-
-#define FRAM_ADDR_DAILY_LOG_HEADER_A    0x0800
-#define FRAM_ADDR_DAILY_LOG_HEADER_B    0x0820
-#define FRAM_ADDR_DAILY_LOG_ENTRIES     0x0840
-
-
-// #define FRAM_SIZE_DAILY_LOG_ENTRY       192
-// #define FRAM_DAILY_LOG_CAPACITY         100
 
 // ============================================================================
 // FRAM OPERATIONS (deklaracje)

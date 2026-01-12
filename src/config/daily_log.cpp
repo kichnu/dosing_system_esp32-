@@ -92,14 +92,41 @@ DailyLogResult DailyLogManager::init() {
     return DailyLogResult::OK;
 }
 
+// DailyLogResult DailyLogManager::reset() {
+//     Serial.println(F("[DailyLog] Resetting buffer..."));
+    
+//     header_ = DailyLogRingHeader();
+//     current_entry_ = DayLogEntry();
+//     current_entry_dirty_ = false;
+    
+//     return saveHeader();
+// }
+
 DailyLogResult DailyLogManager::reset() {
     Serial.println(F("[DailyLog] Resetting buffer..."));
     
+    // Reset header z poprawnymi wartościami
     header_ = DailyLogRingHeader();
+    header_.magic = FRAM_MAGIC_DAILY_LOG;
+    header_.version = DAILY_LOG_VERSION_CURRENT;
+    header_.capacity = FRAM_DAILY_LOG_CAPACITY;  // 100
+    header_.count = 0;
+    header_.head_index = 0;
+    header_.tail_index = 0;
+    header_.first_day_utc = 0;
+    header_.last_day_utc = 0;
+    header_.total_entries_written = 0;
+    header_.write_count = 0;
+    
     current_entry_ = DayLogEntry();
     current_entry_dirty_ = false;
     
-    return saveHeader();
+    auto result = saveHeader();
+    if (result != DailyLogResult::OK) return result;
+    
+    // Zainicjuj dzisiejszy dzień
+    uint32_t now = rtcController.getUnixTime();
+    return initializeNewDay(now);
 }
 
 // ============================================================================
@@ -497,10 +524,13 @@ DailyLogStats DailyLogManager::getStats() const {
     return stats;
 }
 
+
 uint8_t DailyLogManager::getFinalizedCount() const {
+    if (header_.count == 0) return 0;
+    
     // Jeśli mamy bieżący niesfinalizowany wpis, odejmujemy 1
     if (current_entry_.utc_day != 0 && !current_entry_.isFinalized()) {
-        return (header_.count > 0) ? header_.count - 1 : 0;
+        return (header_.count > 1) ? header_.count - 1 : 0;
     }
     return header_.count;
 }
