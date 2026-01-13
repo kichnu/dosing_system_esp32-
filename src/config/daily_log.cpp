@@ -87,6 +87,8 @@ DailyLogResult DailyLogManager::init() {
     
     Serial.printf("[DailyLog] Initialized: %d entries, days %lu-%lu\n", 
                   header_.count, header_.first_day_utc, header_.last_day_utc);
+    Serial.printf("[DailyLog] Memory map: entries=0x%04X-0x%04X, container=0x%04X\n",
+                  FRAM_ADDR_DAILY_LOG_ENTRIES, FRAM_ADDR_DAILY_LOG_END, FRAM_ADDR_CONTAINER_VOLUME);
     
     initialized_ = true;
     return DailyLogResult::OK;
@@ -171,7 +173,6 @@ DailyLogResult DailyLogManager::recordDosing(uint8_t channel, float dose_ml, boo
     }
     
     current_entry_dirty_ = true;
-    current_entry_.fram_writes++;
 
     Serial.printf("[DailyLog] CH%d: %.2f ml, %s\n", 
                   channel, dose_ml, success ? "OK" : "FAILED");
@@ -594,23 +595,77 @@ const char* DailyLogManager::getLastErrorString() const {
 // Metody wewnętrzne - Nagłówek
 // ============================================================================
 
+// DailyLogResult DailyLogManager::loadHeader() {
+//     DailyLogRingHeader headerA, headerB;
+//     bool validA = false, validB = false;
+    
+//     // Wczytaj nagłówek A
+//     if (framController.readBytes(FRAM_ADDR_DAILY_LOG_HEADER_A, (uint8_t*)&headerA, sizeof(headerA))) {
+//         validA = validateHeaderCRC(headerA);
+//     }
+    
+//     // Wczytaj nagłówek B
+//     if (framController.readBytes(FRAM_ADDR_DAILY_LOG_HEADER_B, (uint8_t*)&headerB, sizeof(headerB))) {
+//         validB = validateHeaderCRC(headerB);
+//     }
+    
+//     // Wybierz aktualny nagłówek
+//     if (validA && validB) {
+//         // Oba ważne - wybierz nowszy (wyższy write_count)
+//         header_ = (headerA.write_count >= headerB.write_count) ? headerA : headerB;
+//         Serial.printf("[DailyLog] Both headers valid, using %c (write_count=%lu)\n",
+//                      (headerA.write_count >= headerB.write_count) ? 'A' : 'B',
+//                      header_.write_count);
+//     } else if (validA) {
+//         header_ = headerA;
+//         Serial.println(F("[DailyLog] Using header A"));
+//     } else if (validB) {
+//         header_ = headerB;
+//         Serial.println(F("[DailyLog] Using header B"));
+//     } else {
+//         Serial.println(F("[DailyLog] No valid header found"));
+//         last_error_ = DailyLogResult::ERROR_HEADER_CORRUPT;
+//         return DailyLogResult::ERROR_HEADER_CORRUPT;
+//     }
+    
+//     return DailyLogResult::OK;
+// }
+
+// tymczasowa!!!!!!!!!!!!!!!
 DailyLogResult DailyLogManager::loadHeader() {
     DailyLogRingHeader headerA, headerB;
     bool validA = false, validB = false;
     
     // Wczytaj nagłówek A
+    Serial.println(F("[DailyLog] Reading header A..."));
     if (framController.readBytes(FRAM_ADDR_DAILY_LOG_HEADER_A, (uint8_t*)&headerA, sizeof(headerA))) {
+        Serial.printf("  magic=0x%08X, version=%d, capacity=%d, count=%d\n",
+                      headerA.magic, headerA.version, headerA.capacity, headerA.count);
+        Serial.printf("  write_count=%lu, crc32=0x%08X\n",
+                      headerA.write_count, headerA.crc32);
+        
         validA = validateHeaderCRC(headerA);
+        Serial.printf("  validA=%d\n", validA);
+    } else {
+        Serial.println(F("  Failed to read!"));
     }
     
     // Wczytaj nagłówek B
+    Serial.println(F("[DailyLog] Reading header B..."));
     if (framController.readBytes(FRAM_ADDR_DAILY_LOG_HEADER_B, (uint8_t*)&headerB, sizeof(headerB))) {
+        Serial.printf("  magic=0x%08X, version=%d, capacity=%d, count=%d\n",
+                      headerB.magic, headerB.version, headerB.capacity, headerB.count);
+        Serial.printf("  write_count=%lu, crc32=0x%08X\n",
+                      headerB.write_count, headerB.crc32);
+        
         validB = validateHeaderCRC(headerB);
+        Serial.printf("  validB=%d\n", validB);
+    } else {
+        Serial.println(F("  Failed to read!"));
     }
     
     // Wybierz aktualny nagłówek
     if (validA && validB) {
-        // Oba ważne - wybierz nowszy (wyższy write_count)
         header_ = (headerA.write_count >= headerB.write_count) ? headerA : headerB;
         Serial.printf("[DailyLog] Both headers valid, using %c (write_count=%lu)\n",
                      (headerA.write_count >= headerB.write_count) ? 'A' : 'B',
@@ -632,7 +687,28 @@ DailyLogResult DailyLogManager::loadHeader() {
 
 DailyLogResult DailyLogManager::saveHeader() {
     header_.write_count++;
+
+  Serial.printf("[DailyLog] saveHeader BEFORE CRC:\n");
+    Serial.printf("  magic=0x%08X, version=%d, capacity=%d, count=%d\n",
+                  header_.magic, header_.version, header_.capacity, header_.count);
+    Serial.printf("  head=%d, tail=%d, total=%lu\n",
+                  header_.head_index, header_.tail_index, header_.total_entries_written);
+    Serial.printf("  first_day=%lu, last_day=%lu, write_count=%lu\n",
+                  header_.first_day_utc, header_.last_day_utc, header_.write_count);
+
+
+
+
     calculateHeaderCRC(header_);
+
+     Serial.printf("  calculated CRC=0x%08X\n", header_.crc32);
+
+
+        #if ENABLE_FULL_LOGGING
+    Serial.printf("[DailyLog] saveHeader: count=%d, head=%d, tail=%d, total=%lu\n",
+                  header_.count, header_.head_index, header_.tail_index, 
+                  header_.total_entries_written);
+    #endif
     
     // Zapisz najpierw B, potem A (dla atomowości)
     if (!framController.writeBytes(FRAM_ADDR_DAILY_LOG_HEADER_B, (uint8_t*)&header_, sizeof(header_))) {
@@ -644,6 +720,8 @@ DailyLogResult DailyLogManager::saveHeader() {
         last_error_ = DailyLogResult::ERROR_FRAM_WRITE;
         return DailyLogResult::ERROR_FRAM_WRITE;
     }
+
+        Serial.println(F("[DailyLog] saveHeader: OK"));
     
     return DailyLogResult::OK;
 }
@@ -682,16 +760,45 @@ DailyLogResult DailyLogManager::loadEntry(uint8_t ring_index, DayLogEntry& entry
 }
 
 DailyLogResult DailyLogManager::saveEntry(uint8_t ring_index, DayLogEntry& entry) {
+    // === WALIDACJA BOUNDS ===
+    if (ring_index >= FRAM_DAILY_LOG_CAPACITY) {
+        Serial.printf("[DailyLog] ERROR: ring_index %d >= capacity %d!\n", 
+                      ring_index, FRAM_DAILY_LOG_CAPACITY);
+        last_error_ = DailyLogResult::ERROR_INVALID_PARAM;
+        return DailyLogResult::ERROR_INVALID_PARAM;
+    }
     
+    // Oblicz adres i sprawdź bounds
+    uint32_t addr = FRAM_DAILY_LOG_ENTRY_ADDR(ring_index);
+    uint32_t end_addr = addr + sizeof(entry);
+    
+    // KRYTYCZNE: sprawdź czy nie wyjdziemy poza obszar Daily Log
+    if (end_addr > FRAM_ADDR_DAILY_LOG_END) {
+        Serial.printf("[DailyLog] ERROR: Write would overflow Daily Log area!\n");
+        Serial.printf("  ring_index=%d, addr=0x%04X, end=0x%04X, limit=0x%04X\n",
+                      ring_index, addr, end_addr, FRAM_ADDR_DAILY_LOG_END);
+        last_error_ = DailyLogResult::ERROR_INVALID_PARAM;
+        return DailyLogResult::ERROR_INVALID_PARAM;
+    }
+    
+    // === INCREMENT WRITE COUNTER ===
+    entry.fram_writes++;  // Inkrementuj PRZED zapisem (będzie w zapisanym CRC)
+    
+    // === PRZYGOTUJ DO ZAPISU ===
     entry.write_timestamp = rtcController.getUnixTime();
     calculateEntryCRC(entry);
     
-    uint32_t addr = FRAM_DAILY_LOG_ENTRY_ADDR(ring_index);
-    
+    // === ZAPISZ DO FRAM ===
     if (!framController.writeBytes(addr, (uint8_t*)&entry, sizeof(entry))) {
+        Serial.printf("[DailyLog] ERROR: FRAM write failed at 0x%04X\n", addr);
         last_error_ = DailyLogResult::ERROR_FRAM_WRITE;
         return DailyLogResult::ERROR_FRAM_WRITE;
     }
+    
+    #if ENABLE_FULL_LOGGING
+    Serial.printf("[DailyLog] Saved entry: ring_index=%d, addr=0x%04X, writes=%d\n",
+                  ring_index, addr, entry.fram_writes);
+    #endif
     
     return DailyLogResult::OK;
 }
@@ -718,6 +825,12 @@ uint8_t DailyLogManager::prevIndex(uint8_t current) const {
 }
 
 uint8_t DailyLogManager::indexToRingIndex(uint8_t logical_index) const {
+        // WALIDACJA
+    if (logical_index >= getFinalizedCount()) {
+        Serial.printf("[DailyLog] WARNING: logical_index %d >= finalized count %d\n",
+                      logical_index, getFinalizedCount());
+        return 0;  // Fallback do pierwszego wpisu
+    }
     // logical_index=0 to najnowszy (head)
     // Dla sfinalizowanych: head wskazuje na ostatni wpis (może być niesfinalizowany)
     uint8_t finalized_head = header_.head_index;
@@ -774,16 +887,17 @@ DailyLogResult DailyLogManager::ensureCurrentEntry(uint32_t utc_day) {
 }
 
 DailyLogResult DailyLogManager::commitCurrentEntry() {
-
+    #if ENABLE_FULL_LOGGING
     Serial.printf("[DailyLog] commitCurrentEntry() - dirty=%d, utc_day=%lu\n", 
                   current_entry_dirty_, current_entry_.utc_day);
+    #endif
     
     if (!current_entry_dirty_) {
+        #if ENABLE_FULL_LOGGING
         Serial.println("[DailyLog] SKIP - entry not dirty!");
+        #endif
         return DailyLogResult::OK;
     }
-
-    if (!current_entry_dirty_) return DailyLogResult::OK;
     
     uint8_t target_index;
     bool is_new_entry = false;
@@ -834,14 +948,14 @@ DailyLogResult DailyLogManager::commitCurrentEntry() {
         result = saveHeader();
         if (result != DailyLogResult::OK) return result;
     }
-    
     current_entry_dirty_ = false;
 
+    #if ENABLE_FULL_LOGGING
+    Serial.printf("[DailyLog] Committed to FRAM: idx=%d, day=%lu, writes=%d\n", 
+                  target_index, current_entry_.utc_day, current_entry_.fram_writes);
+    #endif
 
-
-       Serial.printf("[DailyLog] Committed to FRAM, writes=%d\n", current_entry_.fram_writes);
     return DailyLogResult::OK;
-    // return DailyLogResult::OK;
 }
 
 void DailyLogManager::initEmptyEntry(DayLogEntry& entry, uint32_t utc_day, uint8_t day_of_week) {

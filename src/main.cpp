@@ -172,6 +172,22 @@ void testFRAM() {
     framController.dumpSection(FRAM_ADDR_HEADER, 32);
     
     Serial.println(F("\n[FRAM TEST] Complete\n"));
+// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    Serial.println(F("\n--- Daily Log Entry 0 ---"));
+framController.dumpSection(0x0840, 192);
+
+Serial.println(F("\n--- Daily Log Entry 1 ---"));
+framController.dumpSection(0x09C0, 192);
+
+Serial.println(F("\n--- Container Volume CH0 ---"));
+framController.dumpSection(0x0730, 8);
+
+
+Serial.println(F("\n--- Daily Log Header A (0x0800) ---"));
+framController.dumpSection(FRAM_ADDR_DAILY_LOG_HEADER_A, 32);
+
+Serial.println(F("\n--- Daily Log Header B (0x0820) ---"));
+framController.dumpSection(FRAM_ADDR_DAILY_LOG_HEADER_B, 32);
 }
 
 // ============================================================================
@@ -1028,6 +1044,55 @@ Serial.print(F("[INIT] Daily Log... "));
     } else {
         Serial.println(F("[MAIN] Running in degraded mode"));
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // === TEST: Zapisz testową wartość do Container Volume ===
+Serial.println(F("\n[TEST] Writing test data to Container Volume..."));
+ContainerVolume testVol;
+testVol.setContainerMl(1000.0f);  // 1000ml pojemność
+testVol.setRemainingMl(750.0f);   // 750ml pozostało
+testVol.crc32 = framController.calculateCRC32(&testVol, sizeof(testVol) - sizeof(testVol.crc32));
+
+if (framController.writeContainerVolume(0, &testVol)) {
+    Serial.printf("[TEST] Written to CH0: container=%.1fml, remaining=%.1fml\n",
+                  testVol.getContainerMl(), testVol.getRemainingMl());
+    
+    // Odczytaj z powrotem
+    ContainerVolume readBack;
+    if (framController.readContainerVolume(0, &readBack)) {
+        Serial.printf("[TEST] Read back: container=%.1fml, remaining=%.1fml\n",
+                      readBack.getContainerMl(), readBack.getRemainingMl());
+        
+        if (readBack.getContainerMl() == 1000.0f && readBack.getRemainingMl() == 750.0f) {
+            Serial.println(F("[TEST] ✓ Container Volume: PASS"));
+        } else {
+            Serial.println(F("[TEST] ✗ Container Volume: FAIL (corrupted!)"));
+        }
+    }
+} else {
+    Serial.println(F("[TEST] ✗ Failed to write Container Volume!"));
+}
 }
 
 // ============================================================================
@@ -1398,6 +1463,56 @@ void processSerialCommand() {
             }
             break;
         }
+
+case 'Q':
+case 'q': {
+    Serial.println(F("[TEST] Simulating 105 days of Daily Log..."));
+    
+    // Zapisz początkowy stan headera
+    DailyLogStats initial = g_dailyLog->getStats();
+    Serial.printf("[TEST] Initial: count=%d, total=%lu\n", 
+                  initial.count, initial.total_written);
+    
+    for (int day = 0; day < 105; day++) {
+        uint32_t fake_time = rtcController.getUnixTime() + (day * 86400);
+        uint32_t fake_day = timestampToUtcDay(fake_time);
+        
+        // Inicjalizuj nowy dzień
+        g_dailyLog->initializeNewDay(fake_time);
+        
+        // === ZAMIAST recordPowerCycle(), ręcznie zwiększ licznik ===
+        DayLogEntry current;
+        if (g_dailyLog->getCurrentEntry(current) == DailyLogResult::OK) {
+            // Wpis istnieje, kontynuuj bez dodatkowych zapisów
+        }
+        
+        // Finalizuj dzień
+        g_dailyLog->finalizeDay();
+        
+        if (day % 10 == 0) {
+            DailyLogStats stats = g_dailyLog->getStats();
+            Serial.printf("[TEST] Day %d/105: count=%d, total=%lu\n", 
+                          day, stats.count, stats.total_written);
+        }
+    }
+    
+    Serial.println(F("[TEST] Complete! Checking stats..."));
+    DailyLogStats stats = g_dailyLog->getStats();
+    Serial.printf("[TEST] Final: count=%d (max=100), total=%lu (expect=105+)\n", 
+                  stats.count, stats.total_written);
+    
+    // Sprawdź Container Volume
+    ContainerVolume vol;
+    if (framController.readContainerVolume(0, &vol)) {
+        Serial.printf("[TEST] Container: %.1fml ", vol.getContainerMl());
+        if (vol.getContainerMl() == 1000.0f) {
+            Serial.println(F("✓ PASS"));
+        } else {
+            Serial.println(F("✗ CORRUPTED"));
+        }
+    }
+    break;
+}
             
         default:
             Serial.printf("[?] Unknown command: '%c' (0x%02X). Press 'h' for help.\n", 
