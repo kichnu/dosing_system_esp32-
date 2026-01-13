@@ -247,27 +247,6 @@ const char SETUP_PAGE_HTML[] PROGMEM = R"rawliteral(
                     <small>For accessing device dashboard. Minimum 8 characters.</small>
                     <span class="error">Password must be at least 8 characters</span>
                 </div>
-                
-                <!-- VPS Token -->
-                <div class="form-group">
-                    <label for="vps_token">VPS Authentication Token *</label>
-                    <input type="password" id="vps_token" name="vps_token" 
-                           placeholder="vps token"
-                           required>
-                    <small>Token from your VPS server</small>
-                    <span class="error">VPS token is required</span>
-                </div>
-                
-                <!-- VPS URL -->
-                <div class="form-group">
-                    <label for="vps_url">VPS Server URL *</label>
-                    <input type="text" id="vps_url" name="vps_url" 
-                           placeholder="https://vps.example.com:8443"
-                           required>
-                    <small>Full URL with protocol and port</small>
-                    <span class="error">Valid URL required (http:// or https://)</span>
-                </div>
-                
                 <button type="submit" class="btn" id="submitBtn">
                     <span id="submitBtnText">Save Configuration</span>
                     <span class="spinner hidden" id="submitSpinner"></span>
@@ -366,8 +345,7 @@ const char SETUP_PAGE_HTML[] PROGMEM = R"rawliteral(
                 wifi_ssid: document.getElementById('wifi_ssid').value,
                 wifi_password: document.getElementById('wifi_password').value,
                 admin_password: document.getElementById('admin_password').value,
-                vps_token: document.getElementById('vps_token').value,
-                vps_url: document.getElementById('vps_url').value
+
             };
             
             // Validate
@@ -394,12 +372,6 @@ const char SETUP_PAGE_HTML[] PROGMEM = R"rawliteral(
             // Admin Password
             if (formData.admin_password.length < 8) {
                 document.getElementById('admin_password').parentElement.classList.add('has-error');
-                hasErrors = true;
-            }
-            
-            // VPS URL
-            if (!/^https?:\/\/.+/.test(formData.vps_url)) {
-                document.getElementById('vps_url').parentElement.classList.add('has-error');
                 hasErrors = true;
             }
             

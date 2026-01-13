@@ -16,18 +16,15 @@ void handleConfigureSubmit(AsyncWebServerRequest *request, JsonVariant &json) {
     String wifiSSID = jsonObj["wifi_ssid"] | "";
     String wifiPassword = jsonObj["wifi_password"] | "";
     String adminPassword = jsonObj["admin_password"] | "";
-    String vpsToken = jsonObj["vps_token"] | "";
-    String vpsURL = jsonObj["vps_url"] | "";
-    
+
     LOG_INFO("Received credentials:");
     LOG_INFO("  Device Name: %s", deviceName.c_str());
     LOG_INFO("  WiFi SSID: %s", wifiSSID.c_str());
-    LOG_INFO("  VPS URL: %s", vpsURL.c_str());
+    // LOG_INFO("  VPS URL: %s", vpsURL.c_str());
     
     // Validate all credentials
     ValidationResult validation = prov_validateAllCredentials(
-        deviceName, wifiSSID, wifiPassword, 
-        adminPassword, vpsToken, vpsURL
+        deviceName, wifiSSID, wifiPassword
     );
     
     if (!validation.valid) {
@@ -55,9 +52,7 @@ void handleConfigureSubmit(AsyncWebServerRequest *request, JsonVariant &json) {
     creds.wifi_ssid = wifiSSID;
     creds.wifi_password = wifiPassword;
     creds.admin_password = adminPassword;
-    creds.vps_token = vpsToken;
-    creds.vps_url = vpsURL;
-    
+
     // Encrypt credentials
     FRAMCredentials framCreds;
     if (!encryptCredentials(creds, framCreds)) {

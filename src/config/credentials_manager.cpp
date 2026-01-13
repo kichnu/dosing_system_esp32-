@@ -106,20 +106,6 @@ const char* getAdminPasswordHash() {
     return "NO_AUTH_REQUIRES_FRAM_PROGRAMMING";
 }
 
-const char* getVPSToken() {
-    if (credentialsLoaded && loadedCredentials.vps_token.length() > 0) {
-        return loadedCredentials.vps_token.c_str();
-    }
-    return "";
-}
-
-const char* getVPSURL() {
-    if (credentialsLoaded && loadedCredentials.vps_url.length() > 0) {
-        return loadedCredentials.vps_url.c_str();
-    }
-    return "";
-}
-
 const char* getDeviceName() {
     if (credentialsLoaded && loadedCredentials.device_name.length() > 0) {
         return loadedCredentials.device_name.c_str();
@@ -204,8 +190,6 @@ void printCredentialsStatus() {
         Serial.printf("  WiFi SSID: %s\n", loadedCredentials.wifi_ssid.c_str());
         Serial.printf("  WiFi Pass: %s\n", loadedCredentials.wifi_password.length() > 0 ? "***" : "(empty)");
         Serial.printf("  Admin Hash: %s\n", loadedCredentials.admin_password.length() > 0 ? "***" : "(empty)");
-        Serial.printf("  VPS Token: %s\n", loadedCredentials.vps_token.length() > 0 ? "***" : "(empty)");
-        Serial.printf("  VPS URL: %s\n", loadedCredentials.vps_url.c_str());
     } else {
         Serial.println(F("  Using fallback credentials"));
     }

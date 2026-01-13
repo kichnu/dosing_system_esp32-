@@ -15,7 +15,7 @@
 #include "relay_controller.h"
 #include "rtc_controller.h"
 #include "fram_controller.h"
-#include "gpio_validator.h"
+
 
 // ============================================================================
 // SCHEDULER STATE

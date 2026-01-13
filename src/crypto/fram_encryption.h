@@ -14,22 +14,18 @@ struct DeviceCredentials {
     String wifi_ssid;
     String wifi_password;
     String admin_password;    // Will be hashed to SHA-256 hex
-    String vps_token;
-    String vps_url;          // 🆕 NEW: VPS URL
 };
 
 struct FRAMCredentials {
     uint32_t magic;                     // 4 bytes
     uint16_t version;                   // 2 bytes - NOW VERSION 3
-    char device_name[32];               // 32 bytes (plain text)
-    uint8_t iv[8];                      // 8 bytes
-    uint8_t encrypted_wifi_ssid[64];    // 64 bytes
-    uint8_t encrypted_wifi_password[128]; // 128 bytes
-    uint8_t encrypted_admin_hash[96];   // 96 bytes
-    uint8_t encrypted_vps_token[160];   // 160 bytes
-    uint8_t encrypted_vps_url[128];     // 128 bytes 🆕 NEW
-    uint8_t reserved[400];              // 400 bytes (reduced from 528)
-    uint16_t checksum;                  // 2 bytes
+    char device_name[32];          
+    uint8_t iv[8];          
+    uint8_t encrypted_wifi_ssid[64];  
+    uint8_t encrypted_wifi_password[128]; 
+    uint8_t encrypted_admin_hash[96];  
+    uint8_t reserved[688];            
+    uint16_t checksum;                  
 };
 
 // Core encryption functions
@@ -54,8 +50,6 @@ bool decryptCredentials(const FRAMCredentials& fram_creds, DeviceCredentials& cr
 bool validateDeviceName(const String& name);
 bool validateWiFiSSID(const String& ssid);
 bool validateWiFiPassword(const String& password);
-bool validateVPSToken(const String& token);
-bool validateVPSURL(const String& url);        // 🆕 NEW
 
 // Hash functions
 bool sha256Hash(const String& input, uint8_t* hash);

@@ -247,18 +247,13 @@ struct SystemState {
     uint8_t  system_halted;         // Błąd krytyczny - zatrzymanie (0/1)
     uint8_t  active_channel;        // Aktualnie aktywny kanał (255 = żaden)
     uint8_t  active_pump_state;     // PumpState aktywnej pompy
-    
     uint32_t last_daily_reset_day;  // UTC day ostatniego daily reset
     uint32_t boot_count;            // Licznik restartów
-    uint32_t last_vps_log_day;      // UTC day ostatniego logu VPS
-    
     uint8_t  pending_changes_mask;  // Bitmask kanałów z pending changes
     uint8_t  _reserved[3];          // Padding
-    
     uint32_t last_event_timestamp;  // Unix timestamp ostatniego eventu
     uint32_t crc32;                 // CRC32
-    
-    uint8_t  _padding[4];           // Padding do 32 bajtów
+    uint8_t  _padding[8];           // Padding do 32 bajtów
 };
 
 #pragma pack(pop)

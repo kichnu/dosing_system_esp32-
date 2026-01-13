@@ -81,7 +81,7 @@ static const uint8_t VALIDATE_PINS[4] = {
 #define EVENTS_PER_DAY              23      // Godziny 01:00-23:00
 #define FIRST_EVENT_HOUR            1       // Pierwsza godzina eventów
 #define LAST_EVENT_HOUR             23      // Ostatnia godzina eventów
-#define RESERVED_HOUR               0       // 00:xx zarezerwowane na reset+VPS
+#define RESERVED_HOUR               0       // 00:xx zarezerwowane 
 #define WDT_TIMEOUT_SECONDS         30
 
 // Offsety czasowe kanałów (w minutach)
@@ -139,14 +139,6 @@ static const uint8_t VALIDATE_PINS[4] = {
 #define CONTAINER_MAX_ML            5000    // Maksymalna pojemność pojemnika (ml)
 #define CONTAINER_DEFAULT_ML        1000    // Domyślna pojemność (ml)
 #define LOW_VOLUME_THRESHOLD_PCT    10      // Próg ostrzeżenia o niskim stanie (%)
-
-// ============================================================================
-// VPS LOGGING
-// ============================================================================
-#define VPS_LOG_WINDOW_START_HOUR   0       // Początek okna logowania (00:00)
-#define VPS_LOG_WINDOW_END_HOUR     1       // Koniec okna logowania (00:59)
-#define VPS_LOG_TIMEOUT_MS          10000   // Timeout połączenia
-#define VPS_LOG_RETRY_COUNT         3       // Liczba prób
 
 // ============================================================================
 // DAILY RESET
