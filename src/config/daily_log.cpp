@@ -174,11 +174,16 @@ DailyLogResult DailyLogManager::recordDosing(uint8_t channel, float dose_ml, boo
     
     current_entry_dirty_ = true;
 
-    Serial.printf("[DailyLog] CH%d: %.2f ml, %s\n", 
-                  channel, dose_ml, success ? "OK" : "FAILED");
-    
+    Serial.printf("[DailyLog] recordDosing CH%d: %.2f ml, %s (completed=%d, actual=%.2f ml)\n",
+                  channel, dose_ml, success ? "OK" : "FAILED",
+                  ch.events_completed, ch.getDoseActualMl());
+
     // Zapisz do FRAM
-    return commitCurrentEntry();
+    auto commit_result = commitCurrentEntry();
+    if (commit_result != DailyLogResult::OK) {
+        Serial.printf("[DailyLog] ERROR: commitCurrentEntry() failed with code %d\n", (int)commit_result);
+    }
+    return commit_result;
 }
 
 DailyLogResult DailyLogManager::recordCriticalError(uint8_t error_type, uint8_t channel) {
@@ -342,27 +347,50 @@ DailyLogResult DailyLogManager::finalizeDay() {
 
 DailyLogResult DailyLogManager::initializeNewDay(uint32_t current_timestamp) {
     if (!initialized_) return DailyLogResult::ERROR_NOT_INITIALIZED;
-    
+
     uint32_t utc_day = timestampToUtcDay(current_timestamp);
-    
+
+    Serial.printf("[DailyLog] initializeNewDay() called for utc_day=%lu\n", utc_day);
+    Serial.printf("  current_entry_.utc_day=%lu, header_.last_day_utc=%lu, header_.count=%d\n",
+                  current_entry_.utc_day, header_.last_day_utc, header_.count);
+
     // Sprawdź czy ten dzień już jest w RAM
     if (current_entry_.utc_day == utc_day) {
         Serial.printf("[DailyLog] Day %lu already active in RAM, skipping init\n", utc_day);
         return DailyLogResult::OK;
     }
-    
+
     // Sprawdź czy ten dzień już istnieje w FRAM (np. po restarcie)
     if (header_.count > 0 && header_.last_day_utc == utc_day) {
+        Serial.printf("[DailyLog] Attempting to resume existing entry from FRAM (head_index=%d)\n",
+                      header_.head_index);
         DayLogEntry existing;
-        if (loadEntry(header_.head_index, existing) == DailyLogResult::OK) {
+        auto load_result = loadEntry(header_.head_index, existing);
+        if (load_result == DailyLogResult::OK) {
             if (!existing.isFinalized()) {
                 current_entry_ = existing;
                 current_entry_dirty_ = false;
-                Serial.printf("[DailyLog] Resumed existing entry for day %lu (power_cycles=%d)\n", 
-                              utc_day, current_entry_.power_cycles);
+                Serial.printf("[DailyLog] Successfully resumed entry for day %lu (power_cycles=%d, fram_writes=%d)\n",
+                              utc_day, current_entry_.power_cycles, current_entry_.fram_writes);
+                // Debug: pokaż dane kanałów
+                for (uint8_t ch = 0; ch < CHANNEL_COUNT; ch++) {
+                    if (current_entry_.channels[ch].events_completed > 0) {
+                        Serial.printf("  CH%d: completed=%d, dose=%.2f ml\n",
+                                      ch, current_entry_.channels[ch].events_completed,
+                                      current_entry_.channels[ch].getDoseActualMl());
+                    }
+                }
                 return DailyLogResult::OK;
+            } else {
+                Serial.printf("[DailyLog] Entry exists but is finalized, creating new\n");
             }
+        } else {
+            Serial.printf("[DailyLog] ERROR: loadEntry() failed with code %d, creating new empty entry\n",
+                          (int)load_result);
         }
+    } else {
+        Serial.printf("[DailyLog] No existing entry found (last_day=%lu != current=%lu), creating new\n",
+                      header_.last_day_utc, utc_day);
     }
     
     // Jeśli jest niezapisany poprzedni dzień - najpierw sfinalizuj
@@ -375,7 +403,9 @@ DailyLogResult DailyLogManager::initializeNewDay(uint32_t current_timestamp) {
     
     // Oblicz dzień tygodnia
     uint8_t day_of_week = (4 + utc_day) % 7;
-    
+
+    Serial.printf("[DailyLog] Creating NEW EMPTY entry for utc_day=%lu (DoW=%d)\n", utc_day, day_of_week);
+
     // Inicjalizuj nowy wpis
     initEmptyEntry(current_entry_, utc_day, day_of_week);
 
@@ -417,10 +447,18 @@ DailyLogResult DailyLogManager::initializeNewDay(uint32_t current_timestamp) {
 DailyLogResult DailyLogManager::fillTodayPlan() {
     if (!initialized_) return DailyLogResult::ERROR_NOT_INITIALIZED;
     if (current_entry_.utc_day == 0) return DailyLogResult::ERROR_ENTRY_NOT_FOUND;
-    
+
     uint8_t day_of_week = current_entry_.day_of_week;
-    
-    Serial.println(F("[DailyLog] Filling today's plan..."));
+
+    Serial.printf("[DailyLog] fillTodayPlan() called for utc_day=%lu\n", current_entry_.utc_day);
+    // Debug: pokaż dane PRZED aktualizacją
+    for (uint8_t ch = 0; ch < CHANNEL_COUNT; ch++) {
+        if (current_entry_.channels[ch].events_completed > 0) {
+            Serial.printf("  BEFORE CH%d: completed=%d, dose=%.2f ml\n",
+                          ch, current_entry_.channels[ch].events_completed,
+                          current_entry_.channels[ch].getDoseActualMl());
+        }
+    }
     
     for (uint8_t ch = 0; ch < CHANNEL_COUNT; ch++) {
         const ChannelConfig& cfg = channelManager.getActiveConfig(ch);
@@ -453,7 +491,17 @@ DailyLogResult DailyLogManager::fillTodayPlan() {
             }
         }
     }
-    
+
+    // Debug: pokaż dane AFTER aktualizacji
+    Serial.println(F("[DailyLog] After fillTodayPlan:"));
+    for (uint8_t ch = 0; ch < CHANNEL_COUNT; ch++) {
+        if (current_entry_.channels[ch].events_completed > 0) {
+            Serial.printf("  AFTER CH%d: completed=%d, dose=%.2f ml\n",
+                          ch, current_entry_.channels[ch].events_completed,
+                          current_entry_.channels[ch].getDoseActualMl());
+        }
+    }
+
     current_entry_dirty_ = true;
     return commitCurrentEntry();
 }
@@ -745,17 +793,26 @@ void DailyLogManager::calculateHeaderCRC(DailyLogRingHeader& h) {
 
 DailyLogResult DailyLogManager::loadEntry(uint8_t ring_index, DayLogEntry& entry) {
     uint32_t addr = FRAM_DAILY_LOG_ENTRY_ADDR(ring_index);
-    
+
     if (!framController.readBytes(addr, (uint8_t*)&entry, sizeof(entry))) {
+        Serial.printf("[DailyLog] ERROR: loadEntry() - FRAM read failed at ring_index=%d, addr=0x%04X\n",
+                      ring_index, addr);
         last_error_ = DailyLogResult::ERROR_FRAM_READ;
         return DailyLogResult::ERROR_FRAM_READ;
     }
-    
+
     if (!validateEntryCRC(entry)) {
+        Serial.printf("[DailyLog] ERROR: loadEntry() - CRC mismatch at ring_index=%d, utc_day=%lu, fram_writes=%d\n",
+                      ring_index, entry.utc_day, entry.fram_writes);
         last_error_ = DailyLogResult::ERROR_CRC_MISMATCH;
         return DailyLogResult::ERROR_CRC_MISMATCH;
     }
-    
+
+    #if ENABLE_FULL_LOGGING
+    Serial.printf("[DailyLog] loadEntry() OK: ring_index=%d, utc_day=%lu, fram_writes=%d\n",
+                  ring_index, entry.utc_day, entry.fram_writes);
+    #endif
+
     return DailyLogResult::OK;
 }
 
@@ -858,6 +915,9 @@ DailyLogResult DailyLogManager::ensureCurrentEntry(uint32_t utc_day) {
     if (current_entry_.utc_day == utc_day) {
         return DailyLogResult::OK;
     }
+
+    Serial.printf("[DailyLog] ensureCurrentEntry() - current_utc_day=%lu, requested=%lu\n",
+                  current_entry_.utc_day, utc_day);
     
     // Jeśli mamy wpis dla innego dnia - najpierw sfinalizuj
     if (current_entry_.utc_day != 0 && current_entry_dirty_) {
@@ -868,18 +928,28 @@ DailyLogResult DailyLogManager::ensureCurrentEntry(uint32_t utc_day) {
     }
     
     // Sprawdź czy ten dzień już istnieje w buforze (np. po restarcie)
+    // TYLKO jeśli current_entry_ jest pusty (po restarcie)!
     DayLogEntry existing;
-    if (header_.count > 0 && header_.last_day_utc == utc_day) {
+    if (current_entry_.utc_day == 0 && header_.count > 0 && header_.last_day_utc == utc_day) {
+        Serial.printf("[DailyLog] Attempting to resume entry from FRAM (head_index=%d)\n", header_.head_index);
         // Wczytaj ostatni wpis
         if (loadEntry(header_.head_index, existing) == DailyLogResult::OK) {
             if (!existing.isFinalized()) {
                 // Wpis istnieje i nie jest sfinalizowany - wznów
+                Serial.printf("[DailyLog] Resuming entry: fram_writes=%d\n", existing.fram_writes);
                 current_entry_ = existing;
                 current_entry_dirty_ = false;
                 Serial.printf("[DailyLog] Resumed existing entry for day %lu\n", utc_day);
                 return DailyLogResult::OK;
+            } else {
+                Serial.println("[DailyLog] Entry in FRAM is finalized, creating new");
             }
+        } else {
+            Serial.println("[DailyLog] Failed to load entry from FRAM");
         }
+    } else if (current_entry_.utc_day != 0) {
+        Serial.println("[DailyLog] WARNING: current_entry_ exists in RAM but utc_day mismatch - this should not happen!");
+        Serial.printf("  current_entry_.utc_day=%lu, requested=%lu\n", current_entry_.utc_day, utc_day);
     }
     
     // Tworzymy nowy wpis
@@ -887,56 +957,82 @@ DailyLogResult DailyLogManager::ensureCurrentEntry(uint32_t utc_day) {
 }
 
 DailyLogResult DailyLogManager::commitCurrentEntry() {
-    #if ENABLE_FULL_LOGGING
-    Serial.printf("[DailyLog] commitCurrentEntry() - dirty=%d, utc_day=%lu\n", 
+    Serial.printf("[DailyLog] commitCurrentEntry() - dirty=%d, utc_day=%lu\n",
                   current_entry_dirty_, current_entry_.utc_day);
-    #endif
-    
+
     if (!current_entry_dirty_) {
-        #if ENABLE_FULL_LOGGING
         Serial.println("[DailyLog] SKIP - entry not dirty!");
-        #endif
         return DailyLogResult::OK;
     }
     
     uint8_t target_index;
     bool is_new_entry = false;
-    
+    static uint8_t last_target_index = 255;  // Track previous target for same day
+    static uint32_t last_utc_day = 0;
+
+    Serial.printf("[DailyLog] commitCurrentEntry - header state: count=%d, head_index=%d, tail_index=%d\n",
+                  header_.count, header_.head_index, header_.tail_index);
+    Serial.printf("  header_.last_day_utc=%lu, current_entry_.utc_day=%lu, fram_writes=%d\n",
+                  header_.last_day_utc, current_entry_.utc_day, current_entry_.fram_writes);
+
     // Sprawdź czy to nowy wpis czy aktualizacja istniejącego
     if (header_.count == 0 || header_.last_day_utc != current_entry_.utc_day) {
         // Nowy wpis
+        Serial.println("[DailyLog] Detected NEW entry (last_day_utc mismatch)");
         is_new_entry = true;
-        
+
         if (header_.count >= header_.capacity) {
             // Buffer pełny - nadpisujemy najstarszy
+            Serial.println("[DailyLog] Buffer FULL - overwriting oldest");
             target_index = header_.tail_index;
             header_.tail_index = nextIndex(header_.tail_index);
             // first_day_utc zaktualizujemy po zapisie
         } else {
             // Jest miejsce
+            Serial.println("[DailyLog] Buffer has space");
             target_index = header_.count == 0 ? 0 : nextIndex(header_.head_index);
             header_.count++;
         }
-        
+
+        Serial.printf("[DailyLog] NEW entry: target_index=%d, new_head=%d, new_tail=%d\n",
+                      target_index, target_index, header_.tail_index);
+
         header_.head_index = target_index;
         header_.last_day_utc = current_entry_.utc_day;
         header_.total_entries_written++;
-        
+
         if (header_.first_day_utc == 0) {
             header_.first_day_utc = current_entry_.utc_day;
         }
-        
+
     } else {
         // Aktualizacja istniejącego wpisu (head)
+        Serial.printf("[DailyLog] UPDATE existing entry at head_index=%d\n", header_.head_index);
         target_index = header_.head_index;
     }
     
+    // Sprawdź czy target_index zmienił się dla tego samego dnia (BUG!)
+    if (!is_new_entry && last_utc_day == current_entry_.utc_day && last_target_index != 255) {
+        if (target_index != last_target_index) {
+            Serial.printf("[DailyLog] ⚠️  WARNING: target_index changed from %d to %d for same day %lu!\n",
+                          last_target_index, target_index, current_entry_.utc_day);
+            Serial.println("  This indicates header corruption or race condition!");
+        }
+    }
+    last_target_index = target_index;
+    last_utc_day = current_entry_.utc_day;
+
     // Zapisz wpis
+    Serial.printf("[DailyLog] Saving entry to ring_index=%d, is_new=%d\n", target_index, is_new_entry);
     auto result = saveEntry(target_index, current_entry_);
-    if (result != DailyLogResult::OK) return result;
+    if (result != DailyLogResult::OK) {
+        Serial.printf("[DailyLog] ERROR: saveEntry() failed with code %d\n", (int)result);
+        return result;
+    }
     
     // Zapisz nagłówek jeśli nowy wpis
     if (is_new_entry) {
+        Serial.println("[DailyLog] NEW entry - saving header to FRAM");
         // Aktualizuj first_day_utc jeśli nadpisaliśmy najstarszy
         if (header_.count == header_.capacity) {
             DayLogEntry oldest;
@@ -944,16 +1040,30 @@ DailyLogResult DailyLogManager::commitCurrentEntry() {
                 header_.first_day_utc = oldest.utc_day;
             }
         }
-        
+
         result = saveHeader();
-        if (result != DailyLogResult::OK) return result;
+        if (result != DailyLogResult::OK) {
+            Serial.printf("[DailyLog] ERROR: saveHeader() failed with code %d\n", (int)result);
+            return result;
+        }
+        Serial.println("[DailyLog] Header saved successfully");
     }
     current_entry_dirty_ = false;
 
-    #if ENABLE_FULL_LOGGING
-    Serial.printf("[DailyLog] Committed to FRAM: idx=%d, day=%lu, writes=%d\n", 
+    Serial.printf("[DailyLog] Committed to FRAM: idx=%d, day=%lu, writes=%d\n",
                   target_index, current_entry_.utc_day, current_entry_.fram_writes);
-    #endif
+    Serial.printf("  header_ after commit: head_index=%d, last_day_utc=%lu, count=%d\n",
+                  header_.head_index, header_.last_day_utc, header_.count);
+
+    // Debug: wyświetl podsumowanie danych dozowania
+    for (uint8_t ch = 0; ch < CHANNEL_COUNT; ch++) {
+        const DayChannelData& chData = current_entry_.channels[ch];
+        if (chData.events_completed > 0 || chData.events_failed > 0) {
+            Serial.printf("  CH%d: planned=%d, completed=%d, failed=%d, dose=%.2f/%.2f ml\n",
+                          ch, chData.events_planned, chData.events_completed,
+                          chData.events_failed, chData.getDoseActualMl(), chData.getDosePlannedMl());
+        }
+    }
 
     return DailyLogResult::OK;
 }
