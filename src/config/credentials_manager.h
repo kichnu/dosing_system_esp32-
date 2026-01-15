@@ -1,5 +1,3 @@
-
-
 #ifndef CREDENTIALS_MANAGER_H
 #define CREDENTIALS_MANAGER_H
 
@@ -28,8 +26,6 @@ bool areCredentialsLoaded();
 const char* getWiFiSSID();
 const char* getWiFiPassword();
 const char* getAdminPasswordHash();
-// const char* getVPSToken();
-// const char* getVPSURL();
 const char* getDeviceName();
 
 /**

@@ -76,7 +76,8 @@ void handleApiLogin(AsyncWebServerRequest* request) {
         
         AsyncWebServerResponse* response = request->beginResponse(200, "application/json", 
             "{\"success\":true}");
-        response->addHeader("Set-Cookie", "session=" + token + "; Path=/; HttpOnly");
+        // Max-Age=3600 (1h) zgodne z SESSION_TIMEOUT_MS, SameSite=Lax dla kompatybilności
+        response->addHeader("Set-Cookie", "session=" + token + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=3600");
         request->send(response);
         
         Serial.printf("[WEB] Login OK from %s\n", request->client()->remoteIP().toString().c_str());

@@ -410,7 +410,9 @@ DailyLogResult DailyLogManager::initializeNewDay(uint32_t current_timestamp) {
     initEmptyEntry(current_entry_, utc_day, day_of_week);
 
     for (uint8_t ch = 0; ch < CHANNEL_COUNT; ch++) {
-    const ChannelConfig& cfg = channelManager.getActiveConfig(ch);
+    // WAŻNE: Używamy pendingConfig bo recalculate() oblicza wartości z pending
+    // a applyAllPendingChanges() może jeszcze nie być wywołane przy starcie
+    const ChannelConfig& cfg = channelManager.getPendingConfig(ch);
     const ChannelCalculated& calc = channelManager.getCalculated(ch);
         
         if (cfg.enabled && calc.is_valid) {
@@ -461,12 +463,13 @@ DailyLogResult DailyLogManager::fillTodayPlan() {
     }
     
     for (uint8_t ch = 0; ch < CHANNEL_COUNT; ch++) {
-        const ChannelConfig& cfg = channelManager.getActiveConfig(ch);
+        // WAŻNE: Używamy pendingConfig dla spójności z recalculate()
+        const ChannelConfig& cfg = channelManager.getPendingConfig(ch);
         const ChannelCalculated& calc = channelManager.getCalculated(ch);
-        
+
         if (cfg.enabled && calc.is_valid) {
             uint8_t dayBit = (day_of_week == 0) ? 6 : (day_of_week - 1);
-            
+
             if (cfg.days_bitmask & (1 << dayBit)) {
                 // Zachowaj istniejące dane jeśli są
                 uint8_t existingCompleted = current_entry_.channels[ch].events_completed;
@@ -808,10 +811,10 @@ DailyLogResult DailyLogManager::loadEntry(uint8_t ring_index, DayLogEntry& entry
         return DailyLogResult::ERROR_CRC_MISMATCH;
     }
 
-    #if ENABLE_FULL_LOGGING
-    Serial.printf("[DailyLog] loadEntry() OK: ring_index=%d, utc_day=%lu, fram_writes=%d\n",
-                  ring_index, entry.utc_day, entry.fram_writes);
-    #endif
+    // #if ENABLE_FULL_LOGGING
+    // Serial.printf("[DailyLog] loadEntry() OK: ring_index=%d, utc_day=%lu, fram_writes=%d\n",
+    //               ring_index, entry.utc_day, entry.fram_writes);
+    // #endif
 
     return DailyLogResult::OK;
 }

@@ -108,8 +108,8 @@ static const uint8_t VALIDATE_PINS[4] = {
 // extern bool gpioValidationEnabled;  
 
 // // #define GPIO_VALIDATION_ENABLED     false    // Globalne włączenie walidacji
-// #define GPIO_CHECK_DELAY_MS         200    // Opóźnienie przed sprawdzeniem (2s)
-// #define GPIO_DEBOUNCE_MS            100    // Czas debounce (1s)
+
+
 // #define GPIO_EXPECTED_STATE         HIGH    // Oczekiwany stan przy działającej pompie
 
 // ============================================================================

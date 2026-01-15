@@ -53,10 +53,17 @@ bool DosingScheduler::begin() {
         
         // Check if daily reset needed (different day than last reset)
         if (framController.readSystemState(&sysState)) {
+            // ZAWSZE aplikuj pending changes przy starcie - niezależnie od dnia
+            // To zapewnia że activeConfig jest zsynchronizowane z pendingConfig
+            if (channelManager.hasAnyPendingChanges()) {
+                Serial.println(F("[SCHED] Applying pending config changes on startup..."));
+                channelManager.applyAllPendingChanges();
+            }
+
             if (sysState.last_daily_reset_day != currentUtcDay) {
                 Serial.println(F("[SCHED] New day detected - performing startup daily reset"));
                 _performDailyReset();
-                
+
                 // Save new reset day
                 sysState.last_daily_reset_day = currentUtcDay;
                 framController.writeSystemState(&sysState);
@@ -288,23 +295,30 @@ bool DosingScheduler::_checkDailyReset() {
 bool DosingScheduler::_performDailyReset() {
     TimeInfo now = rtcController.getTime();
     Serial.printf("[SCHED] _performDailyReset called at %02d:%02d UTC!\n", now.hour, now.minute);
-    
+
     Serial.println(F("[SCHED] === DAILY RESET ==="));
-    
+
     // Sprawdź czy to pierwszy reset tego dnia
     uint32_t currentUtcDay = (uint32_t)now.year * 366 + (uint32_t)now.month * 31 + now.day;
-    
+
     SystemState sysState;
     bool isFirstResetToday = true;
     if (framController.readSystemState(&sysState)) {
         isFirstResetToday = (sysState.last_daily_reset_day != currentUtcDay);
     }
-    
-    // Daily Log - zawsze aktualizuj plan
+
+    // WAŻNE: Apply pending changes PRZED aktualizacją Daily Log!
+    // Dzięki temu activeConfig i pendingConfig będą spójne
+    if (channelManager.hasAnyPendingChanges()) {
+        Serial.println(F("[SCHED] Applying pending config changes..."));
+        channelManager.applyAllPendingChanges();
+    }
+
+    // Daily Log - aktualizuj plan (po zastosowaniu pending changes)
     if (g_dailyLog) {
         uint32_t currentTimestamp = rtcController.getUnixTime();
         uint32_t currentLogUtcDay = currentTimestamp / 86400;
-        
+
         DayLogEntry currentEntry;
         if (g_dailyLog->getCurrentEntry(currentEntry) == DailyLogResult::OK) {
             if (currentEntry.utc_day != currentLogUtcDay) {
@@ -314,16 +328,10 @@ bool DosingScheduler::_performDailyReset() {
         }
         g_dailyLog->fillTodayPlan();
     }
-    
+
     _lastDay = now.day;
     _todayEventCount = 0;
-    
-    // Apply pending changes - zawsze OK
-    if (channelManager.hasAnyPendingChanges()) {
-        Serial.println(F("[SCHED] Applying pending config changes..."));
-        channelManager.applyAllPendingChanges();
-    }
-    
+
     // Reset daily states - TYLKO PRZY PIERWSZYM RESECIE TEGO DNIA!
     if (isFirstResetToday) {
         Serial.println(F("[SCHED] First reset today - resetting daily states..."));
