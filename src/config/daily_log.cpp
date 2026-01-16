@@ -150,15 +150,20 @@ DailyLogResult DailyLogManager::recordDosing(uint8_t channel, float dose_ml, boo
     
     // Aktualizuj dane kanału
     DayChannelData& ch = current_entry_.channels[channel];
-    
+
+    // Oblicz godzinę dozowania dla bitmaski
+    uint8_t hour = (now % 86400) / 3600;
+
     if (success) {
-        ch.events_completed++;
+        // Używamy markEventCompleted() które ustawia bitmaskę I inkrementuje licznik
+        ch.markEventCompleted(hour);
         ch.addDoseActualMl(dose_ml);
     } else {
-        ch.events_failed++;
+        // Używamy markEventFailed() które ustawia bitmaskę I inkrementuje licznik
+        ch.markEventFailed(hour);
         // Zapisz czas błędu jeśli to pierwszy błąd
         if (!ch.hasError()) {
-            ch.error_hour = (now % 86400) / 3600;
+            ch.error_hour = hour;
             ch.error_minute = ((now % 86400) % 3600) / 60;
             ch.error_type = DayChannelErrorType::OTHER;
         }

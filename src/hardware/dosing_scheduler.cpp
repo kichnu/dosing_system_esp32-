@@ -68,7 +68,13 @@ bool DosingScheduler::begin() {
                 sysState.last_daily_reset_day = currentUtcDay;
                 framController.writeSystemState(&sysState);
             } else {
-                Serial.println(F("[SCHED] Same day - no reset needed"));
+                Serial.println(F("[SCHED] Same day - syncing state from DailyLog"));
+                // Ten sam dzień po restarcie - synchronizuj stan z DailyLog (FRAM)
+                // bo ChannelManager.begin() wczytał stare dane
+                if (g_dailyLog) {
+                    g_dailyLog->fillTodayPlan();  // Upewnij się że mamy aktualny wpis
+                    channelManager.syncDailyStateFromDailyLog();
+                }
             }
         }
     } else {
@@ -337,7 +343,9 @@ bool DosingScheduler::_performDailyReset() {
         Serial.println(F("[SCHED] First reset today - resetting daily states..."));
         channelManager.resetDailyStates();
     } else {
-        Serial.println(F("[SCHED] Already reset today - skipping daily states reset"));
+        // Nie resetujemy, ale synchronizujemy stan z DailyLog
+        Serial.println(F("[SCHED] Already reset today - syncing state from DailyLog"));
+        channelManager.syncDailyStateFromDailyLog();
     }
     
     // Save reset day to FRAM

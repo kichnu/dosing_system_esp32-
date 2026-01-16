@@ -201,7 +201,13 @@ public:
      * Reset stanów dziennych (o północy)
      */
     bool resetDailyStates();
-    
+
+    /**
+     * Synchronizuj stan dzienny z DailyLog (po restarcie)
+     * Wczytuje bitmaski completed/failed z bieżącego dnia DailyLog do RAM
+     */
+    bool syncDailyStateFromDailyLog();
+
     /**
      * Czy event został wykonany
      */

@@ -3,6 +3,8 @@
  */
 
 #include "channel_manager.h"
+#include "daily_log.h"
+#include "daily_log_types.h"
 
 // Global instance
 ChannelManager channelManager;
@@ -338,35 +340,38 @@ bool ChannelManager::revertPendingChanges(uint8_t channel) {
 bool ChannelManager::markEventCompleted(uint8_t channel, uint8_t hour, float dosed_ml) {
     if (channel >= CHANNEL_COUNT) return false;
     if (hour < FIRST_EVENT_HOUR || hour > LAST_EVENT_HOUR) return false;
-    
+
+    // Aktualizuj RAM state (FRAM jest zapisywany przez DailyLog w recordDosing())
     _dailyState[channel].markEventCompleted(hour);
     _dailyState[channel].today_added_ml += dosed_ml;
-    
+
     _updateDailyStateCRC(&_dailyState[channel]);
-    
-    if (!framController.writeDailyState(channel, &_dailyState[channel])) {
-        return false;
-    }
-    
+
+    // USUNIĘTO: framController.writeDailyState() - DailyLog jest single source of truth
+    // Dane są zapisywane do FRAM przez g_dailyLog->recordDosing()
+
     // Deduct from container volume
     deductVolume(channel, dosed_ml);
-    
+
     return true;
-    
 }
 
 bool ChannelManager::markEventFailed(uint8_t channel, uint8_t hour) {
     if (channel >= CHANNEL_COUNT) return false;
     if (hour < FIRST_EVENT_HOUR || hour > LAST_EVENT_HOUR) return false;
-    
+
+    // Aktualizuj RAM state (FRAM jest zapisywany przez DailyLog w recordDosing())
     _dailyState[channel].markEventFailed(hour);
-    
+
     _updateDailyStateCRC(&_dailyState[channel]);
-    
-    Serial.printf("[CH_MGR] CH%d hour %d marked as FAILED (total failed today: %d)\n", 
+
+    Serial.printf("[CH_MGR] CH%d hour %d marked as FAILED (total failed today: %d)\n",
                   channel, hour, _dailyState[channel].failed_count);
-    
-    return framController.writeDailyState(channel, &_dailyState[channel]);
+
+    // USUNIĘTO: framController.writeDailyState() - DailyLog jest single source of truth
+    // Dane są zapisywane do FRAM przez g_dailyLog->recordDosing()
+
+    return true;
 }
 
 bool ChannelManager::isEventFailed(uint8_t channel, uint8_t hour) const {
@@ -387,6 +392,48 @@ bool ChannelManager::resetDailyStates() {
     }
     
     recalculateAll();
+    return true;
+}
+
+bool ChannelManager::syncDailyStateFromDailyLog() {
+    if (!g_dailyLog) {
+        Serial.println(F("[CH_MGR] syncDailyStateFromDailyLog: DailyLog not initialized"));
+        return false;
+    }
+
+    DayLogEntry currentEntry;
+    if (g_dailyLog->getCurrentEntry(currentEntry) != DailyLogResult::OK) {
+        Serial.println(F("[CH_MGR] syncDailyStateFromDailyLog: No current entry in DailyLog"));
+        return false;
+    }
+
+    Serial.printf("[CH_MGR] Syncing daily state from DailyLog (utc_day=%lu)\n", currentEntry.utc_day);
+
+    for (uint8_t ch = 0; ch < CHANNEL_COUNT; ch++) {
+        const DayChannelData& logData = currentEntry.channels[ch];
+
+        // Skopiuj bitmaski z DailyLog do ChannelDailyState
+        _dailyState[ch].events_completed = logData.completed_bitmask;
+        _dailyState[ch].events_failed = logData.failed_bitmask;
+        _dailyState[ch].today_added_ml = logData.getDoseActualMl();
+
+        // Oblicz licznik failed (completed_count jest metodą, nie polem)
+        _dailyState[ch].failed_count = logData.getFailedCount();
+
+        _updateDailyStateCRC(&_dailyState[ch]);
+
+        if (logData.completed_bitmask > 0 || logData.failed_bitmask > 0) {
+            Serial.printf("  CH%d: completed=0x%06X (%d events), failed=0x%06X, dose=%.2f ml\n",
+                          ch,
+                          _dailyState[ch].events_completed,
+                          _dailyState[ch].getCompletedCount(),
+                          _dailyState[ch].events_failed,
+                          _dailyState[ch].today_added_ml);
+        }
+    }
+
+    recalculateAll();
+    Serial.println(F("[CH_MGR] Daily state synced from DailyLog"));
     return true;
 }
 

@@ -81,27 +81,73 @@ struct DayChannelData {
     uint8_t events_planned;
     uint8_t days_active;
     uint16_t dose_planned_ml;
-    uint8_t events_completed;
-    uint8_t events_failed;
+    uint8_t events_completed;      // Liczba wykonanych (dla kompatybilności)
+    uint8_t events_failed;         // Liczba failed (dla kompatybilności)
     uint16_t dose_actual_ml;
     DayChannelStatus status;
     DayChannelErrorType error_type;
     uint8_t error_hour;
     uint8_t error_minute;
-    uint8_t reserved[12];
-    
+    // Bitmaski - KTÓRE godziny były wykonane/failed (używane przez scheduler i GUI)
+    uint32_t completed_bitmask;    // Bit N = godzina N wykonana (1-23)
+    uint32_t failed_bitmask;       // Bit N = godzina N failed (1-23)
+    uint8_t reserved[4];           // Pozostałe miejsce na przyszłość
+
     DayChannelData() :
         events_planned(0), days_active(0), dose_planned_ml(0),
         events_completed(0), events_failed(0), dose_actual_ml(0),
         status(DayChannelStatus::INACTIVE), error_type(DayChannelErrorType::NONE),
-        error_hour(255), error_minute(255), reserved{0} {}
-    
+        error_hour(255), error_minute(255),
+        completed_bitmask(0), failed_bitmask(0), reserved{0} {}
+
+    // Gettery/settery dla dawek
     float getDosePlannedMl() const { return dose_planned_ml / 100.0f; }
     float getDoseActualMl() const { return dose_actual_ml / 100.0f; }
     void setDosePlannedMl(float ml) { dose_planned_ml = static_cast<uint16_t>(ml * 100); }
     void addDoseActualMl(float ml) { dose_actual_ml += static_cast<uint16_t>(ml * 100); }
+
+    // Status
     bool hasError() const { return error_type != DayChannelErrorType::NONE; }
     bool isActive() const { return status != DayChannelStatus::INACTIVE; }
+
+    // Metody dla bitmasek (kompatybilne z ChannelDailyState)
+    inline bool isEventCompleted(uint8_t hour) const {
+        if (hour < 1 || hour > 23) return false;
+        return (completed_bitmask & (1UL << hour)) != 0;
+    }
+
+    inline bool isEventFailed(uint8_t hour) const {
+        if (hour < 1 || hour > 23) return false;
+        return (failed_bitmask & (1UL << hour)) != 0;
+    }
+
+    inline void markEventCompleted(uint8_t hour) {
+        if (hour >= 1 && hour <= 23) {
+            completed_bitmask |= (1UL << hour);
+            events_completed++;  // Aktualizuj też licznik
+        }
+    }
+
+    inline void markEventFailed(uint8_t hour) {
+        if (hour >= 1 && hour <= 23) {
+            failed_bitmask |= (1UL << hour);
+            events_failed++;  // Aktualizuj też licznik
+        }
+    }
+
+    inline uint8_t getCompletedCount() const {
+        uint32_t n = completed_bitmask;
+        uint8_t count = 0;
+        while (n) { count += n & 1; n >>= 1; }
+        return count;
+    }
+
+    inline uint8_t getFailedCount() const {
+        uint32_t n = failed_bitmask;
+        uint8_t count = 0;
+        while (n) { count += n & 1; n >>= 1; }
+        return count;
+    }
 };
 
 // ----------------------------------------------------------------------------
