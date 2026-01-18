@@ -7,7 +7,6 @@
 #include "rtc_controller.h"
 #include <WiFi.h>
 #include <time.h>
-#include "daily_log.h"
 
 // Global instance
 RtcController rtcController;
@@ -401,11 +400,6 @@ bool RtcController::syncNTPWithRetry() {
                                   timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
                                   timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
 
-                                        // Record NTP sync in Daily Log
-                    if (g_dailyLog && g_dailyLog->isInitialized()) {
-                        g_dailyLog->recordNtpSync();
-                    }            
-                    
                     return true;
                 }
             }

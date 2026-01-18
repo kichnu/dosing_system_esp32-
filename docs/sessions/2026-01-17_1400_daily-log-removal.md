@@ -55,8 +55,15 @@ Race conditions causing crashes. AsyncWebServer + FRAM operations conflicting. D
 ## Progress
 - [x] Analysis complete
 - [x] Plan approved
-- [ ] Initial commit before changes
-- [ ] Delete daily log files
-- [ ] Fix compilation errors
-- [ ] Test build
-- [ ] Test runtime
+- [x] Delete daily log files (daily_log.h, daily_log.cpp, daily_log_types.h)
+- [x] Clean fram_layout.h (removed Daily Log sections, freed ~30KB FRAM)
+- [x] Clean dosing_scheduler.cpp (removed commented g_dailyLog code)
+- [x] Clean cli_tests.cpp (removed Daily Log dump tests)
+- [x] Clean dosing_types.h (removed DailyLogEntry struct)
+- [x] Test build - SUCCESS (2026-01-18)
+- [ ] Test runtime on device
+- [ ] Commit changes
+
+## Next Steps (Phase 2)
+- Address race conditions in AsyncWebServer
+- Review mutex/synchronization for I2C bus

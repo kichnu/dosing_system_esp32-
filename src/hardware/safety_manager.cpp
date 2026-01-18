@@ -6,7 +6,6 @@
 #include "fram_layout.h"
 #include "rtc_controller.h"
 #include "fram_controller.h"
-#include "daily_log.h"
 
 // Global instance
 SafetyManager safetyManager;
@@ -127,15 +126,7 @@ void SafetyManager::triggerCriticalError(CriticalErrorType type,
     _saveErrorToFRAM();
     Serial.println(F("[CRITICAL] Error saved to FRAM"));
 
-    //5. === DAILY LOG - rejestruj błąd krytyczny ===
-    if (g_dailyLog) {
-        g_dailyLog->recordCriticalError(
-            static_cast<uint8_t>(type),
-            channel
-        );
-    }
-    
-    // 6. Ustaw flagę i włącz buzzer
+    // 5. Ustaw flagę i włącz buzzer
     _errorActive = true;
     _buzzerState = true;
     digitalWrite(BUZZER_PIN, BUZZER_ACTIVE);

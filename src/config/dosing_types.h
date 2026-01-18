@@ -328,25 +328,6 @@ struct DosingContext {
 };
 
 // ============================================================================
-// VPS LOG ENTRY
-// ============================================================================
-
-/**
- * Struktura logu dziennego dla VPS
- */
-struct DailyLogEntry {
-    uint8_t  channel_id;
-    uint8_t  configured_events;     // Ile eventów było skonfigurowanych
-    uint8_t  completed_events;      // Ile wykonano
-    uint8_t  status;                // 0=OK, 1=PARTIAL, 2=ERROR
-    
-    float    configured_single_ml;  // Skonfigurowana dawka pojedyncza
-    float    actual_total_ml;       // Rzeczywista suma dzienna
-};
-
-
-
-// ============================================================================
 // CRITICAL ERROR STATE (32 bajty) - rozszerzona struktura
 // ============================================================================
 

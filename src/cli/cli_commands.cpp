@@ -12,7 +12,6 @@
 #include "../hardware/rtc_controller.h"
 #include "../algorithm/channel_manager.h"
 #include "../hardware/dosing_scheduler.h"
-#include "../config/daily_log.h"
 #include "../config/fram_layout.h"
 #include <esp_system.h>
 
@@ -24,7 +23,6 @@ extern ChannelManager channelManager;
 extern DosingScheduler dosingScheduler;
 extern bool systemHalted;
 extern bool gpioValidationEnabled;
-extern DailyLogManager* g_dailyLog;
 
 // ============================================================================
 // SERIAL COMMAND PROCESSOR
@@ -232,56 +230,6 @@ void processSerialCommand() {
                 measureGpioTiming(ch);
             } else {
                 Serial.println(F("Invalid channel"));
-            }
-            break;
-        }
-
-        case 'Q':
-        case 'q': {
-            Serial.println(F("[TEST] Simulating 105 days of Daily Log..."));
-
-            // Zapisz początkowy stan headera
-            DailyLogStats initial = g_dailyLog->getStats();
-            Serial.printf("[TEST] Initial: count=%d, total=%lu\n",
-                          initial.count, initial.total_written);
-
-            for (int day = 0; day < 105; day++) {
-                uint32_t fake_time = rtcController.getUnixTime() + (day * 86400);
-                uint32_t fake_day = timestampToUtcDay(fake_time);
-
-                // Inicjalizuj nowy dzień
-                g_dailyLog->initializeNewDay(fake_time);
-
-                // === ZAMIAST recordPowerCycle(), ręcznie zwiększ licznik ===
-                DayLogEntry current;
-                if (g_dailyLog->getCurrentEntry(current) == DailyLogResult::OK) {
-                    // Wpis istnieje, kontynuuj bez dodatkowych zapisów
-                }
-
-                // Finalizuj dzień
-                g_dailyLog->finalizeDay();
-
-                if (day % 10 == 0) {
-                    DailyLogStats stats = g_dailyLog->getStats();
-                    Serial.printf("[TEST] Day %d/105: count=%d, total=%lu\n",
-                                  day, stats.count, stats.total_written);
-                }
-            }
-
-            Serial.println(F("[TEST] Complete! Checking stats..."));
-            DailyLogStats stats = g_dailyLog->getStats();
-            Serial.printf("[TEST] Final: count=%d (max=100), total=%lu (expect=105+)\n",
-                          stats.count, stats.total_written);
-
-            // Sprawdź Container Volume
-            ContainerVolume vol;
-            if (framController.readContainerVolume(0, &vol)) {
-                Serial.printf("[TEST] Container: %.1fml ", vol.getContainerMl());
-                if (vol.getContainerMl() == 1000.0f) {
-                    Serial.println(F("✓ PASS"));
-                } else {
-                    Serial.println(F("✗ CORRUPTED"));
-                }
             }
             break;
         }

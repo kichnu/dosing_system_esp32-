@@ -3,8 +3,6 @@
  */
 
 #include "dosing_scheduler.h"
-#include "daily_log_types.h"
-#include "daily_log.h"
 
 // Global instance
 DosingScheduler dosingScheduler;
@@ -229,62 +227,6 @@ bool DosingScheduler::_checkDailyReset() {
     return true;
 }
 
-// bool DosingScheduler::_performDailyReset() {
-//     TimeInfo now = rtcController.getTime();
-//     Serial.printf("[SCHED] _performDailyReset called at %02d:%02d UTC!\n", now.hour, now.minute);
-    
-//     // SAFETY: Blokuj reset stanów jeśli nie jest północ
-//     bool isMidnight = (now.hour == DAILY_RESET_HOUR);
-    
-//     Serial.println(F("[SCHED] === DAILY RESET ==="));
-    
-//     // Daily Log - zawsze aktualizuj plan
-//     if (g_dailyLog) {
-//         uint32_t currentTimestamp = rtcController.getUnixTime();
-//         uint32_t currentUtcDay = currentTimestamp / 86400;
-        
-//         DayLogEntry currentEntry;
-//         if (g_dailyLog->getCurrentEntry(currentEntry) == DailyLogResult::OK) {
-//             if (currentEntry.utc_day != currentUtcDay) {
-//                 g_dailyLog->finalizeDay();
-//                 g_dailyLog->initializeNewDay(currentTimestamp);
-//             }
-//         }
-//         g_dailyLog->fillTodayPlan();
-//     }
-    
-//     _lastDay = now.day;
-//     _todayEventCount = 0;
-    
-//     // Apply pending changes - zawsze OK
-//     if (channelManager.hasAnyPendingChanges()) {
-//         Serial.println(F("[SCHED] Applying pending config changes..."));
-//         channelManager.applyAllPendingChanges();
-//     }
-    
-//     // Reset daily states - TYLKO O PÓŁNOCY!
-//     if (isMidnight) {
-//         Serial.println(F("[SCHED] Resetting daily states..."));
-//         channelManager.resetDailyStates();
-//     } else {
-//         Serial.println(F("[SCHED] NOT resetting daily states (not midnight)"));
-//     }
-    
-//     // Save reset day to FRAM
-//     uint32_t currentUtcDay = (uint32_t)now.year * 366 + (uint32_t)now.month * 31 + now.day;
-//     SystemState sysState;
-//     if (framController.readSystemState(&sysState)) {
-//         sysState.last_daily_reset_day = currentUtcDay;
-//         framController.writeSystemState(&sysState);
-//         Serial.printf("[SCHED] Reset day saved: %lu\n", currentUtcDay);
-//     }
-    
-//     Serial.println(F("[SCHED] Daily reset complete"));
-    
-//     return true;
-// }
-
-
 bool DosingScheduler::_performDailyReset() {
     TimeInfo now = rtcController.getTime();
     Serial.printf("[SCHED] _performDailyReset called at %02d:%02d UTC!\n", now.hour, now.minute);
@@ -299,22 +241,7 @@ bool DosingScheduler::_performDailyReset() {
     if (framController.readSystemState(&sysState)) {
         isFirstResetToday = (sysState.last_daily_reset_day != currentUtcDay);
     }
-    
-    // Daily Log - zawsze aktualizuj plan
-    if (g_dailyLog) {
-        uint32_t currentTimestamp = rtcController.getUnixTime();
-        uint32_t currentLogUtcDay = currentTimestamp / 86400;
-        
-        DayLogEntry currentEntry;
-        if (g_dailyLog->getCurrentEntry(currentEntry) == DailyLogResult::OK) {
-            if (currentEntry.utc_day != currentLogUtcDay) {
-                g_dailyLog->finalizeDay();
-                g_dailyLog->initializeNewDay(currentTimestamp);
-            }
-        }
-        g_dailyLog->fillTodayPlan();
-    }
-    
+
     _lastDay = now.day;
     _todayEventCount = 0;
     
@@ -546,15 +473,6 @@ void DosingScheduler::_completeDosing(bool success) {
         }
     }
 
-        // === DAILY LOG - rejestruj dozowanie ===
-    if (g_dailyLog) {
-        g_dailyLog->recordDosing(
-            _currentEvent.channel,
-            _currentEvent.target_ml,
-            success
-        );
-    }
-    
     if (success) {
         _todayEventCount++;
         _currentEvent.completed = true;

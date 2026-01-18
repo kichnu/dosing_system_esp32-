@@ -161,20 +161,8 @@ void testFRAM() {
 
     Serial.println(F("\n[FRAM TEST] Complete\n"));
 
-    Serial.println(F("\n--- Daily Log Entry 0 ---"));
-    framController.dumpSection(0x0840, 192);
-
-    Serial.println(F("\n--- Daily Log Entry 1 ---"));
-    framController.dumpSection(0x09C0, 192);
-
     Serial.println(F("\n--- Container Volume CH0 ---"));
     framController.dumpSection(0x0730, 8);
-
-    Serial.println(F("\n--- Daily Log Header A (0x0800) ---"));
-    framController.dumpSection(FRAM_ADDR_DAILY_LOG_HEADER_A, 32);
-
-    Serial.println(F("\n--- Daily Log Header B (0x0820) ---"));
-    framController.dumpSection(FRAM_ADDR_DAILY_LOG_HEADER_B, 32);
 }
 
 // ============================================================================

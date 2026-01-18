@@ -28,8 +28,6 @@
 #include "config/credentials_manager.h"
 #include "hardware/safety_manager.h"
 
-#include "daily_log.h"
-
 // CLI modules (debug only)
 #if ENABLE_CLI
 #include "cli/cli_menu.h"
@@ -144,22 +142,10 @@ void initNetwork() {
                   ssid, 
                   areCredentialsLoaded() ? "FRAM" : "fallback");
 
-    // WiFi event handler for disconnect tracking (with debounce)
-// WiFi event handler for disconnect tracking (with debounce)
+    // WiFi event handler for disconnect/reconnect
     WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
-        static uint32_t lastRecord = 0;
         if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
-            uint32_t now = millis();
-            // Debounce: zapisz max raz na 60 sekund
-            if (now - lastRecord > 60000) {
-                lastRecord = now;
-                Serial.println(F("[WIFI] Disconnected (recorded)"));
-                if (g_dailyLog && g_dailyLog->isInitialized()) {
-                    g_dailyLog->recordWifiDisconnect();
-                }
-            }
-            // Próbuj reconnect
-            Serial.println(F("[WIFI] Attempting reconnect..."));
+            Serial.println(F("[WIFI] Disconnected, attempting reconnect..."));
             WiFi.reconnect();
         } else if (event == ARDUINO_EVENT_WIFI_STA_CONNECTED) {
             Serial.println(F("[WIFI] Reconnected!"));
@@ -362,21 +348,7 @@ void setup() {
 
     safetyManager.begin();
 
-    // === DAILY LOG INIT ===
-Serial.print(F("[INIT] Daily Log... "));
-    if (dailyLogInit()) {
-        g_dailyLog->initializeNewDay(rtcController.getUnixTime());
-        g_dailyLog->recordPowerCycle();
-        // Zarejestruj NTP sync jeśli już się odbył przed inicjalizacją Daily Log
-        if (rtcController.isNtpSynced()) {
-            g_dailyLog->recordNtpSync();
-        }
-        Serial.println(F("OK"));
-    } else {
-        Serial.println(F("FAILED!"));
-    }
-    
-        if (!safetyManager.enableIfSafe()) {
+    if (!safetyManager.enableIfSafe()) {
         // Błąd krytyczny aktywny - system zablokowany
         // Wejdź w pętlę oczekiwania na reset
         Serial.println(F("[MAIN] System locked due to critical error"));
@@ -530,19 +502,6 @@ void loop() {
     }
     #endif
 
-// === DAILY LOG SYSTEM STATS (co 60 sekund) ===
-    static uint32_t lastStatsUpdate = 0;
-    if (g_dailyLog && g_dailyLog->isInitialized()) {
-        if (millis() - lastStatsUpdate >= 60000) {
-            lastStatsUpdate = millis();
-            
-            uint32_t uptime = millis() / 1000;
-            uint8_t freeHeapKb = ESP.getFreeHeap() / 1024;
-            
-            g_dailyLog->updateSystemStats(uptime, freeHeapKb, 0);
-        }
-    }
-    
     // === Heartbeat (production) ===
     #if !ENABLE_CLI
     static uint32_t lastHeartbeat = 0;

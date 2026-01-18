@@ -43,11 +43,7 @@
 // SESSION_DATA        | 0x06B0     | 128 B     | Session data
 // CONTAINER_VOLUME    | 0x0730     | 48 B      | Container volumes (6 × 8B)
 // (free)              | 0x0760     | 160 B     | Reserved for future use
-// DAILY_LOG_HEADER_A  | 0x0800     | 32 B      | Ring buffer header (primary)
-// DAILY_LOG_HEADER_B  | 0x0820     | 32 B      | Ring buffer header (backup)
-// DAILY_LOG_ENTRIES   | 0x0840     | 19,200 B  | Ring buffer (100 × 192B)
-// (end of daily log)  | 0x5340     |           |
-// RESERVED            | 0x5340     | 11,200 B  | Future expansion (~11KB free)
+// RESERVED            | 0x0800     | 30,720 B  | Future expansion (~30KB free)
 // (end of FRAM)       | 0x8000     |           |
 // ============================================================================
 
@@ -174,49 +170,18 @@ static_assert(sizeof(AuthData) == FRAM_SIZE_AUTH_DATA, "AuthData size mismatch")
 #define FRAM_SIZE_FREE_SPACE            160
 
 // ----------------------------------------------------------------------------
-// DAILY LOG RING BUFFER (0x0800 - 0x533F)
-// Lokalny zapis dziennych logów (zastępuje VPS logging)
+// RESERVED (0x0800 - 0x7FFF)
+// Daily Log removed - free space (~30KB) for future use
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_DAILY_LOG_HEADER_A    0x0800
-#define FRAM_ADDR_DAILY_LOG_HEADER_B    0x0820
-#define FRAM_ADDR_DAILY_LOG_ENTRIES     0x0840
-
-#define FRAM_SIZE_DAILY_LOG_HEADER      32
-#define FRAM_SIZE_DAILY_LOG_ENTRY       192
-#define FRAM_DAILY_LOG_CAPACITY         100     // 100 dni historii (~3.3 miesiąca)
-#define FRAM_SIZE_DAILY_LOG_ENTRIES     (FRAM_SIZE_DAILY_LOG_ENTRY * FRAM_DAILY_LOG_CAPACITY)
-
-#define FRAM_MAGIC_DAILY_LOG            0x444C4F47  // "DLOG"
-#define DAILY_LOG_VERSION_CURRENT       1
-
-// Makro do obliczania adresu wpisu
-#define FRAM_DAILY_LOG_ENTRY_ADDR(index) \
-    (FRAM_ADDR_DAILY_LOG_ENTRIES + ((index) * FRAM_SIZE_DAILY_LOG_ENTRY))
-
-// Koniec Daily Log
-#define FRAM_ADDR_DAILY_LOG_END         (FRAM_ADDR_DAILY_LOG_ENTRIES + FRAM_SIZE_DAILY_LOG_ENTRIES)
-// = 0x0840 + 19200 = 0x5340
-
-// ----------------------------------------------------------------------------
-// RESERVED (0x5340 - 0x7FFF)
-// Wolna przestrzeń (~11KB) na przyszłe rozszerzenia
-// ----------------------------------------------------------------------------
-#define FRAM_ADDR_RESERVED              0x5340
-#define FRAM_SIZE_RESERVED              (FRAM_SIZE_BYTES - FRAM_ADDR_RESERVED)  // 11,200B
+#define FRAM_ADDR_RESERVED              0x0800
+#define FRAM_SIZE_RESERVED              (FRAM_SIZE_BYTES - FRAM_ADDR_RESERVED)  // ~30KB
 
 // ============================================================================
 // COMPILE-TIME VALIDATION
 // ============================================================================
 
-// Weryfikacja że nie przekraczamy FRAM
-static_assert(FRAM_ADDR_DAILY_LOG_END <= FRAM_SIZE_BYTES, 
-              "Daily Log exceeds FRAM size!");
 static_assert(FRAM_ADDR_RESERVED + FRAM_SIZE_RESERVED == FRAM_SIZE_BYTES,
               "Reserved section calculation error!");
-
-// Weryfikacja alignmentu Daily Log
-static_assert((FRAM_ADDR_DAILY_LOG_ENTRIES % FRAM_SIZE_DAILY_LOG_ENTRY) == 0,
-              "Daily Log entries must be aligned to entry size!");
 
 // ============================================================================
 // FRAM OPERATIONS (deklaracje)
