@@ -61,8 +61,8 @@ Race conditions causing crashes. AsyncWebServer + FRAM operations conflicting. D
 - [x] Clean cli_tests.cpp (removed Daily Log dump tests)
 - [x] Clean dosing_types.h (removed DailyLogEntry struct)
 - [x] Test build - SUCCESS (2026-01-18)
-- [ ] Test runtime on device
-- [ ] Commit changes
+- [x] Test runtime on device
+- [x] Commit changes
 
 ## Next Steps (Phase 2)
 - Address race conditions in AsyncWebServer

@@ -505,6 +505,55 @@ struct ContainerVolume {
 static_assert(sizeof(ContainerVolume) == 8, "ContainerVolume must be 8 bytes");
 
 // ============================================================================
+// DOSED TRACKER (suma dozowana od ostatniego resetu)
+// Rozmiar: 8 bajtów (packed)
+// ============================================================================
+
+#pragma pack(push, 1)
+
+/**
+ * Tracker sumy dozowanej od ostatniego ręcznego resetu
+ * Przechowywana w FRAM per kanał
+ * Wartość przechowywana jako uint16_t × 10 (0.1ml precision)
+ */
+struct DosedTracker {
+    uint16_t total_dosed_ml;    // Suma dozowana × 10 (max 6553.5ml)
+    uint16_t _reserved;         // Padding for alignment
+    uint32_t crc32;             // CRC32 validation
+
+    // ------------------------------------------
+    // Metody pomocnicze (inline)
+    // ------------------------------------------
+
+    inline float getTotalDosedMl() const {
+        return total_dosed_ml / 10.0f;
+    }
+
+    inline void addDosed(float ml) {
+        uint32_t newVal = total_dosed_ml + (uint16_t)(ml * 10.0f);
+        // Cap at max uint16_t value
+        if (newVal > 65535) newVal = 65535;
+        total_dosed_ml = (uint16_t)newVal;
+    }
+
+    inline void reset() {
+        total_dosed_ml = 0;
+        _reserved = 0;
+    }
+
+    inline uint8_t getPercentOfWeekly(float weekly_ml) const {
+        if (weekly_ml <= 0) return 0;
+        float pct = (getTotalDosedMl() / weekly_ml) * 100.0f;
+        if (pct > 100.0f) return 100;  // Cap at 100% for display
+        return (uint8_t)pct;
+    }
+};
+
+#pragma pack(pop)
+
+static_assert(sizeof(DosedTracker) == 8, "DosedTracker must be 8 bytes");
+
+// ============================================================================
 // UTILITY FUNCTIONS (deklaracje)
 // ============================================================================
 

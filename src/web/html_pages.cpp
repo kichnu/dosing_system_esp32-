@@ -276,17 +276,34 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .header-toggle.shifted{left:150px;top:6px}
 }
 
-/* Container Volume */
-.container-status{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+/* Volume group full width */
+.volume-group.full-width{width:100%;margin-bottom:10px}
+.volume-group.full-width .volume-input{width:100%}
+
+/* Calc item full width (for Days Left) */
+.calc-item-full{width:100%;height:var(--input-height);background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'SF Mono','Fira Code',monospace;font-size:var(--font-lg);font-weight:700;color:var(--text-primary);display:flex;align-items:center;justify-content:center}
+
+/* Save button in calc-grid */
+.calc-grid .save-btn{background:linear-gradient(135deg,var(--accent-cyan),var(--accent-blue));border:none;color:var(--bg-primary);border-radius:var(--radius-sm);font-size:var(--font-sm);font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all var(--transition-fast);height:49px}
+.calc-grid .save-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(34,211,213,0.3)}
+.calc-grid .save-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none;box-shadow:none}
+.calc-grid .save-btn svg{width:14px;height:14px}
+
+/* Container Volume bars */
+.bar-group{margin-bottom:10px}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-direction:row-reverse}
+.bar-row .bar-label{font-family:'SF Mono','Fira Code',monospace;font-size:var(--font-sm);font-weight:600;text-align:left;color:var(--text-secondary)}
+.bar-row .bar-label.low{color:var(--accent-red)}
 .container-bar{flex:1;height:10px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;position:relative}
 .container-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent-cyan),var(--accent-blue));transition:width 0.3s ease;border-radius:var(--radius-sm) 0 0 var(--radius-sm)}
 .container-bar-fill.low{background:linear-gradient(90deg,var(--accent-red),var(--accent-orange))}
-.container-bar-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'SF Mono','Fira Code',monospace;font-size:var(--font-sm);font-weight:600;color:var(--text-primary);text-shadow:0 1px 2px rgba(0,0,0,0.5)}
-.container-pct{font-family:'SF Mono','Fira Code',monospace;font-size:var(--font-md);font-weight:700;min-width:45px;text-align:right}
-.container-pct.low{color:var(--accent-red)}
-.refill-btn{width:100%;margin-top:8px;height:var(--btn-height);background:rgba(34,197,94,0.1);border:1px solid var(--accent-green);border-radius:var(--radius-sm);color:var(--accent-green);font-size:var(--font-sm);font-weight:600;cursor:pointer;transition:all var(--transition-fast);display:flex;align-items:center;justify-content:center;gap:6px}
-.refill-btn:hover{background:rgba(34,197,94,0.2)}
-.refill-btn svg{width:16px;height:16px}
+.container-bar-fill.dosed{background:linear-gradient(90deg,var(--accent-blue),var(--accent-cyan))}
+
+/* Buttons row */
+.buttons-row{display:flex;gap:8px;margin-top:10px}
+.buttons-row .btn{flex:1}
+.buttons-row .refill-btn,.buttons-row .reset-btn{margin-top:0}
+.refill-btn svg,.reset-btn svg{width:14px;height:14px}
 
 /* Modal */
 .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;visibility:hidden;transition:all 0.2s ease}
@@ -357,6 +374,15 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
             </div>
         </div>
         <div class="modal-overlay" id="alertModal"><div class="modal-box"><div class="modal-icon" id="alertIcon"></div><div class="modal-title" id="alertTitle"></div><div class="modal-text" id="alertText"></div><div class="modal-actions" id="alertActions"></div></div></div>
+        <div class="modal-overlay" id="saveModal">
+            <div class="modal-box">
+                <div class="modal-icon info"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg></div>
+                <div class="modal-title">Save changes?</div>
+                <div class="modal-text">Configuration will be active from tomorrow.</div>
+                <div class="modal-info"><div class="modal-info-label">Channel <span id="saveModalChannel">1</span></div></div>
+                <div class="modal-actions"><button class="btn btn-secondary" onclick="closeSaveModal()">Cancel</button><button class="btn btn-primary" onclick="confirmSave()">Save</button></div>
+            </div>
+        </div>
     </div>
 <script>
 const CFG={CHANNEL_COUNT:4,EVENTS_PER_DAY:23,FIRST_EVENT_HOUR:1,CHANNEL_OFFSET_MIN:15,EVENT_WINDOW_SEC:300,MAX_PUMP_SEC:180,MIN_DOSE_ML:1.0,CALIB_SEC:30,SWIPE_THRESHOLD:50};
@@ -373,7 +399,7 @@ let pendingRefillChannel=-1;
 
 function init(){
     for(let i=0;i<CFG.CHANNEL_COUNT;i++){
-        channels.push({id:i,events:0,days:0,dailyDose:0,dosingRate:0.33,eventsCompleted:0,eventsFailed:0,state:'inactive',containerMl:1000,remainingMl:1000,remainingPct:100,lowVolume:false,daysRemaining:999});
+        channels.push({id:i,events:0,days:0,dailyDose:0,dosingRate:0.33,eventsCompleted:0,eventsFailed:0,state:'inactive',containerMl:1000,remainingMl:1000,remainingPct:100,lowVolume:false,daysRemaining:999,totalDosedMl:0});
     }
     setupHeaderToggle();
     renderOverview();
@@ -462,12 +488,11 @@ ${ch.state==='pending'?`<div class="pending-banner"><svg fill="none" stroke="cur
 <div class="card-content">
 <div class="section"><div class="section-header"><div class="section-title"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>Time Schedule (UTC)</div><div class="section-info" id="evInfo_${idx}">${evCnt} of 23</div></div><div class="section-body"><div class="events-grid">${eventsHtml}</div></div></div>
 <div class="section"><div class="section-header"><div class="section-title"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Active Days</div><div class="section-info" id="dayInfo_${idx}">${dayCnt} of 7</div></div><div class="section-body"><div class="days-grid">${daysHtml}</div></div></div>
-<div class="section"><div class="section-header"><div class="section-title"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>Dosing Volume</div></div><div class="section-body"><div class="volume-row"><div class="volume-group"><label class="volume-label">Daily Dose</label><input type="number" class="volume-input" id="dose_${idx}" value="${ch.dailyDose}" step="0.1" min="0" data-ch="${idx}"></div><span class="volume-unit">ml/day</span></div><div class="calc-grid"><div class="calc-item hl"><div class="calc-lbl">Single Dose</div><div class="calc-val" id="single_${idx}">${single.toFixed(1)} ml</div></div><div class="calc-item"><div class="calc-lbl">Pump Time</div><div class="calc-val" id="pumpTime_${idx}">${pumpTime.toFixed(1)} s</div></div><div class="calc-item"><div class="calc-lbl">Weekly</div><div class="calc-val" id="weekly_${idx}">${weekly.toFixed(1)} ml</div></div><div class="calc-item ok"><div class="calc-lbl">Today</div><div class="calc-val" id="today_${idx}">${completedCnt} / ${evCnt}</div></div></div></div></div>
-<div class="section"><div class="section-header"><div class="section-title"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>Container Volume</div></div><div class="section-body"><div class="volume-row"><div class="volume-group"><label class="volume-label">Container Size</label><input type="number" class="volume-input" id="container_${idx}" value="${ch.containerMl||1000}" step="50" min="100" max="5000" onchange="saveContainerSize(${idx})"></div><span class="volume-unit">ml</span></div><div class="container-status"><div class="container-bar"><div class="container-bar-fill ${ch.lowVolume?'low':''}" id="containerBar_${idx}" style="width:${ch.remainingPct||100}%"></div></div><div class="container-pct ${ch.lowVolume?'low':''}" id="containerPct_${idx}">${ch.remainingPct||100}%</div></div><div class="calc-grid"><div class="calc-item ${ch.lowVolume?'warn':''}"><div class="calc-lbl">Remaining</div><div class="calc-val" id="remaining_${idx}">${(ch.remainingMl||1000).toFixed(0)} ml</div></div><div class="calc-item"><div class="calc-lbl">Days Left</div><div class="calc-val" id="daysLeft_${idx}">${ch.daysRemaining?ch.daysRemaining.toFixed(1):'∞'}</div></div></div><button class="refill-btn" onclick="showRefillModal(${idx})"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>Refill Container</button></div></div>
+<div class="section"><div class="section-header"><div class="section-title"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>Dosing Volume</div></div><div class="section-body"><div class="volume-group full-width"><label class="volume-label">Daily Dose (ml)</label><input type="number" class="volume-input" id="dose_${idx}" value="${ch.dailyDose}" step="0.1" min="0" data-ch="${idx}"></div><div class="calc-grid"><div class="calc-item hl"><div class="calc-lbl">Single Dose</div><div class="calc-val" id="single_${idx}">${single.toFixed(1)} ml</div></div><div class="calc-item"><div class="calc-lbl">Pump Time</div><div class="calc-val" id="pumpTime_${idx}">${pumpTime.toFixed(1)} s</div></div><div class="calc-item"><div class="calc-lbl">Weekly</div><div class="calc-val" id="weekly_${idx}">${weekly.toFixed(1)} ml</div></div><button class="btn btn-primary save-btn" id="saveBtn_${idx}" onclick="showSaveModal(${idx})"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>Save</button></div></div></div>
+<div class="section"><div class="section-header"><div class="section-title"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>Container Volume</div></div><div class="section-body"><div class="volume-group full-width"><label class="volume-label">Container Size (ml)</label><input type="number" class="volume-input" id="container_${idx}" value="${ch.containerMl||1000}" step="50" min="100" max="5000" onchange="saveContainerSize(${idx})"></div><div class="volume-group full-width"><label class="volume-label">Days Left</label><div class="calc-item-full" id="daysLeft_${idx}">${ch.daysRemaining?ch.daysRemaining.toFixed(1):'∞'}</div></div><div class="bar-group"><div class="bar-row"><span class="bar-label ${ch.lowVolume?'low':''}" id="remainingLabel_${idx}">remaining ${(ch.remainingMl||1000).toFixed(0)} ml</span><div class="container-bar"><div class="container-bar-fill ${ch.lowVolume?'low':''}" id="containerBar_${idx}" style="width:${ch.remainingPct||100}%"></div></div></div><div class="bar-row"><span class="bar-label" id="dosedLabel_${idx}">dosed ${(ch.totalDosedMl||0).toFixed(1)} ml</span><div class="container-bar"><div class="container-bar-fill dosed" id="dosedBar_${idx}" style="width:${weekly>0?Math.min(100,(ch.totalDosedMl||0)/weekly*100):0}%"></div></div></div></div><div class="buttons-row"><button class="btn btn-primary refill-btn" onclick="showRefillModal(${idx})"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>Refill Container</button><button class="btn btn-primary reset-btn" onclick="resetDosed(${idx})"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Reset Dosed</button></div></div></div>
 <div class="section"><div class="section-header"><div class="section-title"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>Calibration</div></div><div class="section-body"><div class="calib-row"><button class="calib-btn" id="calibBtn_${idx}" onclick="runCalib(${idx})"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21 5,3"/></svg>Run Pump (30s)</button><div class="calib-input-group"><label class="calib-label">Measured</label><input type="number" class="calib-input" id="calibMl_${idx}" placeholder="ml" step="0.1" data-ch="${idx}"></div></div></div></div>
 <div class="valid-msg ${validClass}" id="validMsg_${idx}"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">${validIcon}</svg><span id="validTxt_${idx}">${validMsg}</span></div>
 </div>
-<div class="card-footer"><button class="btn btn-secondary" onclick="cancelChanges(${idx})"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Cancel</button><button class="btn btn-primary" id="saveBtn_${idx}" onclick="saveChanges(${idx})"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>Save</button></div>
 </div>`;
 }
 
@@ -504,7 +529,6 @@ function updateChannel(idx){
     document.getElementById(`single_${idx}`).textContent=`${single.toFixed(1)} ml`;
     document.getElementById(`pumpTime_${idx}`).textContent=`${pumpTime.toFixed(1)} s`;
     document.getElementById(`weekly_${idx}`).textContent=`${weekly.toFixed(1)} ml`;
-    document.getElementById(`today_${idx}`).textContent=failedCnt>0?`${completedCnt}✓ ${failedCnt}✗ / ${evCnt}`:`${completedCnt} / ${evCnt}`;
     
     const validMsg=document.getElementById(`validMsg_${idx}`);
     const validTxt=document.getElementById(`validTxt_${idx}`);
@@ -539,15 +563,6 @@ function runCalib(idx){
 }
 
 function calcCalibration(idx){const ml=parseFloat(document.getElementById(`calibMl_${idx}`).value)||0;if(ml>0){channels[idx].dosingRate=ml/CFG.CALIB_SEC;updateChannel(idx);}}
-
-function saveChanges(idx){
-    const ch=channels[idx];
-    const payload={channel:idx,events:ch.events,days:ch.days,dailyDose:ch.dailyDose,dosingRate:ch.dosingRate};
-    fetch('api/dosing-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
-    .then(r=>r.json())
-    .then(data=>{editingChannel=-1;if(data.success){ch.state='pending';renderChannels();renderOverview();showAlert('Success','Configuration saved. Changes active from tomorrow.','ok');}else{showAlert('Error','Save failed: '+(data.error||'Unknown error'),'err');}})
-    .catch(()=>showAlert('Error','Connection error','err'));
-}
 
 function cancelChanges(idx){editingChannel=-1;loadStatus();}
 
@@ -596,6 +611,7 @@ function loadStatus(){
                     channels[i].remainingPct=chData.remainingPct||100;
                     channels[i].lowVolume=chData.lowVolume||false;
                     channels[i].daysRemaining=chData.daysRemaining||999;
+                    channels[i].totalDosedMl=chData.totalDosedMl||0;
                 }
             });
             if(editingChannel===-1)renderChannels();
@@ -653,20 +669,57 @@ function confirmRefill(){
     }).catch(err=>console.error('Refill error:',err));
 }
 
+let pendingSaveChannel=-1;
+
+function showSaveModal(idx){
+    pendingSaveChannel=idx;
+    document.getElementById('saveModalChannel').textContent=idx+1;
+    document.getElementById('saveModal').classList.add('show');
+}
+
+function closeSaveModal(){document.getElementById('saveModal').classList.remove('show');pendingSaveChannel=-1;}
+
+function confirmSave(){
+    if(pendingSaveChannel<0){closeSaveModal();return;}
+    const idx=pendingSaveChannel;
+    closeSaveModal();
+    const ch=channels[idx];
+    const payload={channel:idx,events:ch.events,days:ch.days,dailyDose:ch.dailyDose,dosingRate:ch.dosingRate};
+    fetch('api/dosing-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(r=>r.json())
+    .then(data=>{editingChannel=-1;if(data.success){ch.state='pending';renderChannels();renderOverview();showAlert('Success','Configuration saved. Changes active from tomorrow.','ok');}else{showAlert('Error','Save failed: '+(data.error||'Unknown error'),'err');}})
+    .catch(()=>showAlert('Error','Connection error','err'));
+}
+
+function resetDosed(idx){
+    fetch(`api/reset-dosed?channel=${idx}`,{method:'POST'}).then(r=>r.json()).then(data=>{
+        if(data.success){
+            channels[idx].totalDosedMl=0;
+            updateDosedDisplay(idx);
+        }
+    }).catch(err=>console.error('Reset dosed error:',err));
+}
+
+function updateDosedDisplay(idx){
+    const ch=channels[idx];
+    const weekly=ch.dailyDose*popcount(ch.days);
+    const dosedPct=weekly>0?Math.min(100,(ch.totalDosedMl/weekly)*100):0;
+    const dosedBar=document.getElementById(`dosedBar_${idx}`);
+    const dosedLabel=document.getElementById(`dosedLabel_${idx}`);
+    if(dosedBar)dosedBar.style.width=`${dosedPct}%`;
+    if(dosedLabel)dosedLabel.textContent=`dosed ${ch.totalDosedMl.toFixed(1)} ml`;
+}
+
 function updateContainerDisplay(idx,data){
     const bar=document.getElementById(`containerBar_${idx}`);
-    const text=document.getElementById(`containerText_${idx}`);
-    const pct=document.getElementById(`containerPct_${idx}`);
-    const remaining=document.getElementById(`remaining_${idx}`);
+    const remainingLabel=document.getElementById(`remainingLabel_${idx}`);
     if(bar){const pctVal=data.remaining_pct!==undefined?data.remaining_pct:(data.remaining_ml/data.container_ml*100);bar.style.width=`${pctVal}%`;bar.classList.toggle('low',data.low_warning);}
-    if(text)text.textContent=`${data.remaining_ml.toFixed(0)} ml`;
-    if(pct){const pctVal=data.remaining_pct!==undefined?data.remaining_pct:Math.round(data.remaining_ml/data.container_ml*100);pct.textContent=`${pctVal}%`;pct.classList.toggle('low',data.low_warning);}
-    if(remaining)remaining.textContent=`${data.remaining_ml.toFixed(0)} ml`;
+    if(remainingLabel){remainingLabel.textContent=`remaining ${data.remaining_ml.toFixed(0)} ml`;remainingLabel.classList.toggle('low',data.low_warning);}
     if(channels[idx]){channels[idx].containerMl=data.container_ml;channels[idx].remainingMl=data.remaining_ml;channels[idx].remainingPct=data.remaining_pct;channels[idx].lowVolume=data.low_warning;}
 }
 
-document.addEventListener('click',function(e){if(e.target.id==='refillModal')closeRefillModal();if(e.target.id==='alertModal')closeAlert();});
-document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeRefillModal();closeAlert();}});
+document.addEventListener('click',function(e){if(e.target.id==='refillModal')closeRefillModal();if(e.target.id==='alertModal')closeAlert();if(e.target.id==='saveModal')closeSaveModal();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeRefillModal();closeAlert();closeSaveModal();}});
 const MODAL_ICONS={
 ok:'<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>',
 err:'<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',

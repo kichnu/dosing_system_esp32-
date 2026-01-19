@@ -191,6 +191,9 @@ for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
         ch["remainingPct"] = vol.getRemainingPercent();
         ch["lowVolume"] = vol.isLowVolume();
         ch["daysRemaining"] = channelManager.getDaysRemaining(i);
+
+        // Dosed tracker (total dosed since last reset)
+        ch["totalDosedMl"] = channelManager.getTotalDosed(i);
     }
     
     // Serialize and send
@@ -635,8 +638,47 @@ void handleApiRefill(AsyncWebServerRequest* request) {
     serializeJson(resp, response);
     request->send(200, "application/json", response);
     
-    Serial.printf("[WEB] Refill CH%d: %s (%.1f ml)\n", 
+    Serial.printf("[WEB] Refill CH%d: %s (%.1f ml)\n",
                   channel, success ? "OK" : "FAILED", vol.getRemainingMl());
+}
+
+// ============================================================================
+// API: RESET DOSED TRACKER - Reset total dosed since reset
+// ============================================================================
+
+void handleApiResetDosed(AsyncWebServerRequest* request) {
+    if (!isAuthenticated(request)) {
+        request->send(401, "application/json", "{\"success\":false,\"error\":\"Unauthorized\"}");
+        return;
+    }
+
+    if (!request->hasParam("channel")) {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Missing channel\"}");
+        return;
+    }
+
+    uint8_t channel = request->getParam("channel")->value().toInt();
+
+    if (channel >= CHANNEL_COUNT) {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid channel\"}");
+        return;
+    }
+
+    Serial.printf("[WEB] Reset dosed tracker request CH%d\n", channel);
+
+    bool success = channelManager.resetDosedTracker(channel);
+
+    JsonDocument resp;
+    resp["success"] = success;
+    resp["channel"] = channel;
+    resp["totalDosedMl"] = 0;
+    resp["message"] = success ? "Dosed tracker reset" : "Reset failed";
+
+    String response;
+    serializeJson(resp, response);
+    request->send(200, "application/json", response);
+
+    Serial.printf("[WEB] Reset dosed CH%d: %s\n", channel, success ? "OK" : "FAILED");
 }
 
 void handleNotFound(AsyncWebServerRequest* request) {
@@ -672,6 +714,7 @@ void initWebServer() {
     server.on("/api/container-volume", HTTP_GET, handleApiContainerVolumeGet);
     server.on("/api/container-volume", HTTP_POST, [](AsyncWebServerRequest* request){}, NULL, handleApiContainerVolumeSet);
     server.on("/api/refill", HTTP_POST, handleApiRefill);
+    server.on("/api/reset-dosed", HTTP_POST, handleApiResetDosed);
 
     // === 404 HANDLER ===
     server.onNotFound(handleNotFound);

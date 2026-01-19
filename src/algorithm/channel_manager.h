@@ -181,7 +181,34 @@ public:
      * Przeładuj container volumes z FRAM
      */
     bool reloadContainerVolumes();
-    
+
+    // --- Dosed Tracker ---
+
+    /**
+     * Pobierz dosed tracker kanału
+     */
+    const DosedTracker& getDosedTracker(uint8_t channel) const;
+
+    /**
+     * Pobierz sumę dozowaną od ostatniego resetu (ml)
+     */
+    float getTotalDosed(uint8_t channel) const;
+
+    /**
+     * Dodaj objętość do sumy dozowanej (wywoływane po dawce)
+     */
+    bool addDosedVolume(uint8_t channel, float ml);
+
+    /**
+     * Resetuj sumę dozowaną do 0
+     */
+    bool resetDosedTracker(uint8_t channel);
+
+    /**
+     * Przeładuj dosed trackers z FRAM
+     */
+    bool reloadDosedTrackers();
+
     /**
      * Oznacz event jako wykonany
      */
@@ -271,12 +298,14 @@ private:
     ChannelDailyState _dailyState[CHANNEL_COUNT];
     ChannelCalculated _calculated[CHANNEL_COUNT];
     ContainerVolume   _containerVolume[CHANNEL_COUNT];
-    
+    DosedTracker      _dosedTracker[CHANNEL_COUNT];
+
     // Empty config for invalid channel access
     static ChannelConfig _emptyConfig;
     static ChannelDailyState _emptyDailyState;
     static ChannelCalculated _emptyCalculated;
     static ContainerVolume _emptyContainerVolume;
+    static DosedTracker _emptyDosedTracker;
     
     /**
      * Zapisz pending config do FRAM i oznacz jako has_pending
@@ -289,6 +318,7 @@ private:
     void _updateConfigCRC(ChannelConfig* cfg);
     void _updateDailyStateCRC(ChannelDailyState* state);
     void _updateContainerVolumeCRC(ContainerVolume* volume);
+    void _updateDosedTrackerCRC(DosedTracker* tracker);
 };
 
 // ============================================================================

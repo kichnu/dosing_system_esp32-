@@ -12,6 +12,7 @@ ChannelConfig ChannelManager::_emptyConfig = {};
 ChannelDailyState ChannelManager::_emptyDailyState = {};
 ChannelCalculated ChannelManager::_emptyCalculated = {};
 ContainerVolume ChannelManager::_emptyContainerVolume = {};
+DosedTracker ChannelManager::_emptyDosedTracker = {};
 
 // ============================================================================
 // INITIALIZATION
@@ -44,7 +45,16 @@ bool ChannelManager::begin() {
             _containerVolume[i].reset();
         }
     }
-    
+
+    // Load dosed trackers
+    if (!reloadDosedTrackers()) {
+        Serial.println(F("[CH_MGR] WARNING: Failed to load dosed trackers, using defaults"));
+        // Initialize with defaults
+        for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
+            _dosedTracker[i].reset();
+        }
+    }
+
     _initialized = true;
     Serial.println(F("[CH_MGR] Ready"));
     return true;
@@ -338,21 +348,23 @@ bool ChannelManager::revertPendingChanges(uint8_t channel) {
 bool ChannelManager::markEventCompleted(uint8_t channel, uint8_t hour, float dosed_ml) {
     if (channel >= CHANNEL_COUNT) return false;
     if (hour < FIRST_EVENT_HOUR || hour > LAST_EVENT_HOUR) return false;
-    
+
     _dailyState[channel].markEventCompleted(hour);
     _dailyState[channel].today_added_ml += dosed_ml;
-    
+
     _updateDailyStateCRC(&_dailyState[channel]);
-    
+
     if (!framController.writeDailyState(channel, &_dailyState[channel])) {
         return false;
     }
-    
+
     // Deduct from container volume
     deductVolume(channel, dosed_ml);
-    
+
+    // Add to dosed tracker (total since reset)
+    addDosedVolume(channel, dosed_ml);
+
     return true;
-    
 }
 
 bool ChannelManager::markEventFailed(uint8_t channel, uint8_t hour) {
@@ -552,19 +564,19 @@ float ChannelManager::getDaysRemaining(uint8_t channel) const {
 
 bool ChannelManager::reloadContainerVolumes() {
     Serial.println(F("[CH_MGR] Loading container volumes..."));
-    
+
     for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
         if (!framController.readContainerVolume(i, &_containerVolume[i])) {
             Serial.printf("[CH_MGR] Failed to read container volume CH%d\n", i);
             return false;
         }
-        
+
         // Validate CRC
         uint32_t calc_crc = FramController::calculateCRC32(
-            &_containerVolume[i], 
+            &_containerVolume[i],
             sizeof(ContainerVolume) - sizeof(uint32_t)
         );
-        
+
         if (calc_crc != _containerVolume[i].crc32) {
             Serial.printf("[CH_MGR] CH%d container volume CRC mismatch, resetting\n", i);
             _containerVolume[i].reset();
@@ -572,7 +584,72 @@ bool ChannelManager::reloadContainerVolumes() {
             framController.writeContainerVolume(i, &_containerVolume[i]);
         }
     }
-    
+
+    return true;
+}
+
+// ============================================================================
+// DOSED TRACKER
+// ============================================================================
+
+const DosedTracker& ChannelManager::getDosedTracker(uint8_t channel) const {
+    if (channel >= CHANNEL_COUNT) return _emptyDosedTracker;
+    return _dosedTracker[channel];
+}
+
+float ChannelManager::getTotalDosed(uint8_t channel) const {
+    if (channel >= CHANNEL_COUNT) return 0;
+    return _dosedTracker[channel].getTotalDosedMl();
+}
+
+bool ChannelManager::addDosedVolume(uint8_t channel, float ml) {
+    if (channel >= CHANNEL_COUNT) return false;
+    if (ml <= 0) return true;  // Nothing to add
+
+    _dosedTracker[channel].addDosed(ml);
+    _updateDosedTrackerCRC(&_dosedTracker[channel]);
+
+    Serial.printf("[CH_MGR] CH%d total dosed: %.1f ml (+%.2f ml)\n",
+                  channel, _dosedTracker[channel].getTotalDosedMl(), ml);
+
+    return framController.writeDosedTracker(channel, &_dosedTracker[channel]);
+}
+
+bool ChannelManager::resetDosedTracker(uint8_t channel) {
+    if (channel >= CHANNEL_COUNT) return false;
+
+    float oldValue = _dosedTracker[channel].getTotalDosedMl();
+    _dosedTracker[channel].reset();
+    _updateDosedTrackerCRC(&_dosedTracker[channel]);
+
+    Serial.printf("[CH_MGR] CH%d dosed tracker reset (was %.1f ml)\n", channel, oldValue);
+
+    return framController.writeDosedTracker(channel, &_dosedTracker[channel]);
+}
+
+bool ChannelManager::reloadDosedTrackers() {
+    Serial.println(F("[CH_MGR] Loading dosed trackers..."));
+
+    for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
+        if (!framController.readDosedTracker(i, &_dosedTracker[i])) {
+            Serial.printf("[CH_MGR] Failed to read dosed tracker CH%d\n", i);
+            return false;
+        }
+
+        // Validate CRC
+        uint32_t calc_crc = FramController::calculateCRC32(
+            &_dosedTracker[i],
+            sizeof(DosedTracker) - sizeof(uint32_t)
+        );
+
+        if (calc_crc != _dosedTracker[i].crc32) {
+            Serial.printf("[CH_MGR] CH%d dosed tracker CRC mismatch, resetting\n", i);
+            _dosedTracker[i].reset();
+            _updateDosedTrackerCRC(&_dosedTracker[i]);
+            framController.writeDosedTracker(i, &_dosedTracker[i]);
+        }
+    }
+
     return true;
 }
 
@@ -696,6 +773,10 @@ void ChannelManager::_updateDailyStateCRC(ChannelDailyState* state) {
 
 void ChannelManager::_updateContainerVolumeCRC(ContainerVolume* volume) {
     volume->crc32 = FramController::calculateCRC32(volume, sizeof(ContainerVolume) - sizeof(uint32_t));
+}
+
+void ChannelManager::_updateDosedTrackerCRC(DosedTracker* tracker) {
+    tracker->crc32 = FramController::calculateCRC32(tracker, sizeof(DosedTracker) - sizeof(uint32_t));
 }
 
 // ============================================================================

@@ -24,7 +24,7 @@
 // MAGIC NUMBERS & VERSION
 // ============================================================================
 #define FRAM_MAGIC_NUMBER       0x444F5A41  // "DOZA" in ASCII
-#define FRAM_LAYOUT_VERSION     6           // v6: Corrected memory map
+#define FRAM_LAYOUT_VERSION     7           // v7: Added DosedTracker
 
 // ============================================================================
 // FRAM MEMORY LAYOUT v6 - CORRECTED
@@ -42,7 +42,8 @@
 // AUTH_DATA           | 0x0670     | 64 B      | Admin password hash
 // SESSION_DATA        | 0x06B0     | 128 B     | Session data
 // CONTAINER_VOLUME    | 0x0730     | 48 B      | Container volumes (6 × 8B)
-// (free)              | 0x0760     | 160 B     | Reserved for future use
+// DOSED_TRACKER       | 0x0760     | 48 B      | Dosed since reset (6 × 8B)
+// (free)              | 0x0790     | 112 B     | Reserved for future use
 // RESERVED            | 0x0800     | 30,720 B  | Future expansion (~30KB free)
 // (end of FRAM)       | 0x8000     |           |
 // ============================================================================
@@ -163,11 +164,20 @@ static_assert(sizeof(AuthData) == FRAM_SIZE_AUTH_DATA, "AuthData size mismatch")
 #define FRAM_ADDR_CONTAINER_CH(n)       (FRAM_ADDR_CONTAINER_VOLUME + ((n) * 8))
 
 // ----------------------------------------------------------------------------
-// FREE SPACE (0x0760 - 0x07FF)
-// Zarezerwowane na przyszłość (160B)
+// DOSED TRACKER (0x0760 - 0x078F)
+// Suma dozowana od ostatniego resetu (6 kanałów × 8B)
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_FREE_SPACE            0x0760
-#define FRAM_SIZE_FREE_SPACE            160
+#define FRAM_ADDR_DOSED_TRACKER         0x0760
+#define FRAM_SIZE_DOSED_TRACKER         48      // 6 kanałów × 8B
+
+#define FRAM_ADDR_DOSED_TRACKER_CH(n)   (FRAM_ADDR_DOSED_TRACKER + ((n) * 8))
+
+// ----------------------------------------------------------------------------
+// FREE SPACE (0x0790 - 0x07FF)
+// Zarezerwowane na przyszłość (112B)
+// ----------------------------------------------------------------------------
+#define FRAM_ADDR_FREE_SPACE            0x0790
+#define FRAM_SIZE_FREE_SPACE            112
 
 // ----------------------------------------------------------------------------
 // RESERVED (0x0800 - 0x7FFF)
@@ -261,6 +271,23 @@ bool framWriteDailyState(uint8_t channel, const ChannelDailyState* state);
  * Resetuj stan dzienny wszystkich kanałów
  */
 bool framResetAllDailyStates(uint8_t currentDay);
+
+// --- Dosed Tracker ---
+
+/**
+ * Odczytaj dosed tracker kanału
+ */
+bool framReadDosedTracker(uint8_t channel, DosedTracker* tracker);
+
+/**
+ * Zapisz dosed tracker kanału
+ */
+bool framWriteDosedTracker(uint8_t channel, const DosedTracker* tracker);
+
+/**
+ * Resetuj dosed tracker kanału (wyzeruj sumę)
+ */
+bool framResetDosedTracker(uint8_t channel);
 
 // --- System State ---
 
