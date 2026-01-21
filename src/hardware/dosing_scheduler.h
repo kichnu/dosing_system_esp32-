@@ -87,8 +87,15 @@ public:
     
     /**
      * Pobierz aktualny event (jeśli dozowanie w trakcie)
+     * WARNING: Not thread-safe, use getEventSnapshot() for multi-context access
      */
     const DosingEvent& getCurrentEvent() const { return _currentEvent; }
+
+    /**
+     * Pobierz atomową kopię aktualnego eventu (thread-safe)
+     * Use this from web handlers or interrupt contexts
+     */
+    DosingEvent getEventSnapshot() const;
     
     // --- Manual control ---
     

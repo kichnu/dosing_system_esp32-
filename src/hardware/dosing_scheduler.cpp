@@ -7,6 +7,9 @@
 // Global instance
 DosingScheduler dosingScheduler;
 
+// Critical section spinlock for scheduler state (race condition fix)
+static portMUX_TYPE _schedulerMux = portMUX_INITIALIZER_UNLOCKED;
+
 // ============================================================================
 // INITIALIZATION
 // ============================================================================
@@ -373,7 +376,8 @@ bool DosingScheduler::_startDosing(uint8_t channel, uint8_t hour) {
         return false;
     }
     
-    // Setup event
+    // Setup event - atomic update to prevent partial reads
+    portENTER_CRITICAL(&_schedulerMux);
     _currentEvent.channel = channel;
     _currentEvent.hour = hour;
     _currentEvent.target_ml = calc.single_dose_ml;
@@ -383,6 +387,7 @@ bool DosingScheduler::_startDosing(uint8_t channel, uint8_t hour) {
     _currentEvent.failed = false;
     _currentEvent.gpio_validated = false;
     _currentEvent.validation_started = false;
+    portEXIT_CRITICAL(&_schedulerMux);
     
     Serial.printf("[SCHED] Starting CH%d: %.2f ml, %lu ms\n",
                   channel, _currentEvent.target_ml, _currentEvent.target_duration_ms);
@@ -447,45 +452,49 @@ void DosingScheduler::_checkDosingProgress() {
 }
 
 void DosingScheduler::_completeDosing(bool success) {
-    uint32_t actualDuration = millis() - _currentEvent.start_time_ms;
-    
+    // Snapshot event data first (atomic read)
+    portENTER_CRITICAL(&_schedulerMux);
+    uint8_t channel = _currentEvent.channel;
+    uint8_t hour = _currentEvent.hour;
+    float targetMl = _currentEvent.target_ml;
+    uint32_t startTime = _currentEvent.start_time_ms;
+    portEXIT_CRITICAL(&_schedulerMux);
+
+    uint32_t actualDuration = millis() - startTime;
+
     Serial.printf("[SCHED] CH%d complete: %s, %lu ms\n",
-                  _currentEvent.channel,
+                  channel,
                   success ? "OK" : "FAILED",
                   actualDuration);
-    
+
     // ALWAYS mark event as done to prevent retry loop
     // Even failed events should not be retried in the same hour window
     if (success) {
         // Event wykonany pomyślnie
-        channelManager.markEventCompleted(
-            _currentEvent.channel, 
-            _currentEvent.hour,
-            _currentEvent.target_ml
-        );
+        channelManager.markEventCompleted(channel, hour, targetMl);
     } else {
         // Event nieudany - oznacz jako FAILED (tylko jeśli nie został już oznaczony przez RelayController)
-        if (!channelManager.isEventFailed(_currentEvent.channel, _currentEvent.hour)) {
-            channelManager.markEventFailed(
-                _currentEvent.channel, 
-                _currentEvent.hour
-            );
+        if (!channelManager.isEventFailed(channel, hour)) {
+            channelManager.markEventFailed(channel, hour);
         }
     }
 
+    // Update event state - atomic
+    portENTER_CRITICAL(&_schedulerMux);
     if (success) {
         _todayEventCount++;
         _currentEvent.completed = true;
     } else {
         _currentEvent.failed = true;
-        Serial.printf("[SCHED] WARNING: CH%d event marked done despite failure (no retry)\n",
-                      _currentEvent.channel);
     }
-    
-    
     // Clear event
     _currentEvent.channel = 255;
     _state = SchedulerState::IDLE;
+    portEXIT_CRITICAL(&_schedulerMux);
+
+    if (!success) {
+        Serial.printf("[SCHED] WARNING: CH%d event marked done despite failure (no retry)\n", channel);
+    }
 }
 
 // ============================================================================
@@ -589,4 +598,16 @@ const char* DosingScheduler::stateToString(SchedulerState state) {
         case SchedulerState::SCHED_DISABLED:    return "SCHED_DISABLED";
         default:                          return "UNKNOWN";
     }
+}
+
+// ============================================================================
+// THREAD-SAFE ACCESS
+// ============================================================================
+
+DosingEvent DosingScheduler::getEventSnapshot() const {
+    DosingEvent snapshot;
+    portENTER_CRITICAL(&_schedulerMux);
+    snapshot = _currentEvent;
+    portEXIT_CRITICAL(&_schedulerMux);
+    return snapshot;
 }

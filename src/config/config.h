@@ -170,7 +170,7 @@ static const uint8_t VALIDATE_PINS[4] = {
 // ============================================================================
 // SYSTEM FLAGS
 // ============================================================================
-extern bool systemHalted;           // Flaga błędu krytycznego
+extern volatile bool systemHalted;  // Flaga błędu krytycznego (volatile: multi-context access)
 extern bool pumpGlobalEnabled;      // Globalne włączenie pomp
 
 // ============================================================================

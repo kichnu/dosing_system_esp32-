@@ -21,7 +21,7 @@ extern FramController framController;
 extern RtcController rtcController;
 extern ChannelManager channelManager;
 extern DosingScheduler dosingScheduler;
-extern bool systemHalted;
+extern volatile bool systemHalted;
 extern bool gpioValidationEnabled;
 
 // ============================================================================
@@ -93,33 +93,6 @@ void processSerialCommand() {
         case 'P':
             relayController.printStatus();
             break;
-
-        // case 'g':
-        // case 'G':
-        //     gpioValidator.printAllGpio();
-        //     break;
-
-        // case 'v':
-        // case 'V': {
-        //     uint8_t active = relayController.getActiveChannel();
-        //     if (active < CHANNEL_COUNT) {
-        //         Serial.printf("[CMD] Starting validation for CH%d\n", active);
-        //         gpioValidator.startValidation(active);
-        //
-        //         // Wait for result
-        //         while (gpioValidator.isValidating()) {
-        //             gpioValidator.update();
-        //             delay(100);
-        //         }
-        //
-        //         ValidationResult res = gpioValidator.getLastResult();
-        //         Serial.printf("[CMD] Validation result: %s\n",
-        //                       GpioValidator::resultToString(res));
-        //     } else {
-        //         Serial.println(F("[CMD] No pump active - turn one on first"));
-        //     }
-        //     break;
-        // }
 
         case 'f':
         case 'F':

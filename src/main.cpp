@@ -38,7 +38,7 @@
 // ============================================================================
 // GLOBAL STATE
 // ============================================================================
-bool systemHalted = false;
+volatile bool systemHalted = false;  // volatile: accessed from multiple contexts (main loop, web handlers, SafetyManager)
 bool pumpGlobalEnabled = true;
 bool gpioValidationEnabled = GPIO_VALIDATION_DEFAULT;
 InitStatus initStatus;
@@ -328,7 +328,6 @@ void setup() {
         default: Serial.println(F("(Unknown)")); break;
     }
 
-    
     // Reset init status
     initStatus.reset();
     

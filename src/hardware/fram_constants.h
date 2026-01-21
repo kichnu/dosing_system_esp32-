@@ -14,8 +14,6 @@
 #define MAX_DEVICE_NAME_LEN     32
 #define MAX_WIFI_SSID_LEN       32
 #define MAX_WIFI_PASSWORD_LEN   64
-// #define MAX_VPS_TOKEN_LEN       64
-// #define MAX_VPS_URL_LEN         128
 
 // Encryption constants
 #define ENCRYPTION_SALT         "DOZOWNIK_SALT_2025"

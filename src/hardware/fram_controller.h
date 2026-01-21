@@ -94,10 +94,6 @@ public:
     bool resetDosedTracker(uint8_t channel);
     bool initializeDosedTrackers();
 
-    // // --- Error State ---
-    
-    // // bool readErrorState(ErrorState* state);
-    // // bool writeErrorState(const ErrorState* state);
     // bool clearErrorState();
     
     // --- Utility ---

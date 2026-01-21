@@ -15,6 +15,9 @@
 // Global instance
 RelayController relayController;
 
+// Critical section spinlock for pump mutex (TOCTOU protection)
+static portMUX_TYPE _pumpMutex = portMUX_INITIALIZER_UNLOCKED;
+
 // ============================================================================
 // INITIALIZATION
 // ============================================================================
@@ -104,21 +107,28 @@ RelayResult RelayController::turnOn(uint8_t channel, uint32_t max_duration_ms, b
         Serial.println(F("[RELAY] ERROR: Critical error active"));
         return RelayResult::ERROR_SYSTEM_HALTED;
     }
-    
-    // Check mutex
+
+    // === ATOMIC CHECK-AND-SET for pump mutex (TOCTOU fix) ===
+    portENTER_CRITICAL(&_pumpMutex);
+
+    // Check mutex - inside critical section
     if (_activeChannel < CHANNEL_COUNT && _activeChannel != channel) {
+        portEXIT_CRITICAL(&_pumpMutex);
         Serial.printf("[RELAY] ERROR: CH%d blocked, CH%d is active\n", channel, _activeChannel);
         return RelayResult::ERROR_MUTEX_LOCKED;
     }
-    
-    // Check if already on
+
+    // Check if already on - inside critical section
     if (_channels[channel].is_on) {
+        portEXIT_CRITICAL(&_pumpMutex);
         return RelayResult::ERROR_ALREADY_ON;
     }
-    
-    // Set parameters
+
+    // Set parameters - atomically with check above
     _activeMaxDuration = (max_duration_ms > 0) ? max_duration_ms : MAX_PUMP_DURATION_MS;
     _activeChannel = channel;
+
+    portEXIT_CRITICAL(&_pumpMutex);
     _validationEnabled = validate;
     
     Serial.printf("[RELAY] CH%d starting (max %lu ms, validation: %s)\n", 
@@ -468,41 +478,43 @@ void RelayController::_validationSuccess() {
     _validationState = GpioValidationState::IDLE;
 }
 
-void RelayController::_validationFailed(GpioValidationState failState, 
+void RelayController::_validationFailed(GpioValidationState failState,
                                          CriticalErrorType errorType,
                                          ValidationPhase phase) {
+    // === SNAPSHOT FIRST - capture all state before any modifications ===
+    // This prevents race conditions where scheduler state changes during error handling
     uint8_t failedChannel = _activeChannel;
-    
+    DosingEvent eventSnapshot = dosingScheduler.getCurrentEvent();  // Snapshot before state changes
+    int gpioReading = _lastGpioReading;
+
     Serial.println();
     Serial.println(F("+==========================================================+"));
     Serial.printf("|  GPIO VALIDATION FAILED - CH%d - %-24s |\n",failedChannel,
                   validationStateToString(failState));
     Serial.println(F("+==========================================================+"));
 
-    
     // Natychmiast wyłącz przekaźnik (jeśli jeszcze włączony)
     _setRelay(failedChannel, false);
-    
+
     // Wyczyść stan lokalny
     _channels[failedChannel].is_on = false;
     _activeChannel = 255;
     _activeMaxDuration = 0;
     _pumpStartTime = 0;
-    
+
     _transitionTo(failState);
 
-    // === OZNACZ EVENT JAKO FAILED (przed zablokowaniem systemu!) ===
-    uint8_t eventHour = dosingScheduler.getCurrentEvent().hour;
-    if (eventHour >= FIRST_EVENT_HOUR && eventHour <= LAST_EVENT_HOUR) {
-        channelManager.markEventFailed(failedChannel, eventHour);
+    // === MARK EVENT AS FAILED using snapshot data ===
+    if (eventSnapshot.hour >= FIRST_EVENT_HOUR && eventSnapshot.hour <= LAST_EVENT_HOUR) {
+        channelManager.markEventFailed(failedChannel, eventSnapshot.hour);
     }
-    
+
     // TRIGGER CRITICAL ERROR w SafetyManager
     safetyManager.triggerCriticalError(
         errorType,
         failedChannel,
         phase,
-        (uint32_t)_lastGpioReading
+        (uint32_t)gpioReading
     );
 }
 

@@ -7,7 +7,7 @@
 #include <esp_system.h>
 
 // External variables from main
-extern bool systemHalted;
+extern volatile bool systemHalted;
 extern bool gpioValidationEnabled;
 
 void printBanner() {

@@ -19,8 +19,6 @@
  *   "wifi_ssid": "MyNetwork",
  *   "wifi_password": "password123",
  *   "admin_password": "admin123",
- *   "vps_token": "token123",
- *   "vps_url": "https://vps.example.com"
  * }
  * 
  * Response (JSON):

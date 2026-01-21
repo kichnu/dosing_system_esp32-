@@ -7,6 +7,38 @@
 // Global instance
 ChannelManager channelManager;
 
+// Recursive mutex for RAM cache access (race condition fix)
+// Using RECURSIVE mutex because markEventCompleted() calls deductVolume()/addDosedVolume()
+// which also take the lock - recursive mutex allows same task to take lock multiple times
+static SemaphoreHandle_t _channelMutex = nullptr;
+static bool _mutexInitialized = false;
+
+// Helper to initialize mutex once
+static void _initMutex() {
+    if (!_mutexInitialized) {
+        _channelMutex = xSemaphoreCreateRecursiveMutex();
+        _mutexInitialized = (_channelMutex != nullptr);
+    }
+}
+
+// RAII-style lock guard for cleaner code (recursive mutex version)
+class ChannelLock {
+public:
+    ChannelLock() : _locked(false) {
+        if (_channelMutex && xSemaphoreTakeRecursive(_channelMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            _locked = true;
+        }
+    }
+    ~ChannelLock() {
+        if (_locked) {
+            xSemaphoreGiveRecursive(_channelMutex);
+        }
+    }
+    bool isLocked() const { return _locked; }
+private:
+    bool _locked;
+};
+
 // Static empty instances for invalid access
 ChannelConfig ChannelManager::_emptyConfig = {};
 ChannelDailyState ChannelManager::_emptyDailyState = {};
@@ -20,7 +52,13 @@ DosedTracker ChannelManager::_emptyDosedTracker = {};
 
 bool ChannelManager::begin() {
     Serial.println(F("[CH_MGR] Initializing..."));
-    
+
+    // Initialize mutex for thread-safe access
+    _initMutex();
+    if (!_mutexInitialized) {
+        Serial.println(F("[CH_MGR] WARNING: Failed to create mutex"));
+    }
+
     if (!framController.isReady()) {
         Serial.println(F("[CH_MGR] ERROR: FRAM not ready!"));
         _initialized = false;
@@ -349,6 +387,12 @@ bool ChannelManager::markEventCompleted(uint8_t channel, uint8_t hour, float dos
     if (channel >= CHANNEL_COUNT) return false;
     if (hour < FIRST_EVENT_HOUR || hour > LAST_EVENT_HOUR) return false;
 
+    // Lock for atomic daily state update
+    ChannelLock lock;
+    if (!lock.isLocked()) {
+        Serial.println(F("[CH_MGR] WARNING: markEventCompleted failed to acquire lock"));
+    }
+
     _dailyState[channel].markEventCompleted(hour);
     _dailyState[channel].today_added_ml += dosed_ml;
 
@@ -358,6 +402,8 @@ bool ChannelManager::markEventCompleted(uint8_t channel, uint8_t hour, float dos
         return false;
     }
 
+    // Note: deductVolume and addDosedVolume have their own locks,
+    // but we hold this lock to ensure daily state consistency
     // Deduct from container volume
     deductVolume(channel, dosed_ml);
 
@@ -370,14 +416,20 @@ bool ChannelManager::markEventCompleted(uint8_t channel, uint8_t hour, float dos
 bool ChannelManager::markEventFailed(uint8_t channel, uint8_t hour) {
     if (channel >= CHANNEL_COUNT) return false;
     if (hour < FIRST_EVENT_HOUR || hour > LAST_EVENT_HOUR) return false;
-    
+
+    // Lock for atomic daily state update
+    ChannelLock lock;
+    if (!lock.isLocked()) {
+        Serial.println(F("[CH_MGR] WARNING: markEventFailed failed to acquire lock"));
+    }
+
     _dailyState[channel].markEventFailed(hour);
-    
+
     _updateDailyStateCRC(&_dailyState[channel]);
-    
-    Serial.printf("[CH_MGR] CH%d hour %d marked as FAILED (total failed today: %d)\n", 
+
+    Serial.printf("[CH_MGR] CH%d hour %d marked as FAILED (total failed today: %d)\n",
                   channel, hour, _dailyState[channel].failed_count);
-    
+
     return framController.writeDailyState(channel, &_dailyState[channel]);
 }
 
@@ -493,35 +545,47 @@ bool ChannelManager::setContainerCapacity(uint8_t channel, float capacity_ml) {
 
 bool ChannelManager::refillContainer(uint8_t channel) {
     if (channel >= CHANNEL_COUNT) return false;
-    
+
+    // Lock for atomic R/M/W operation (prevents race with deductVolume)
+    ChannelLock lock;
+    if (!lock.isLocked()) {
+        Serial.println(F("[CH_MGR] WARNING: refillContainer failed to acquire lock"));
+    }
+
     _containerVolume[channel].refill();
     _updateContainerVolumeCRC(&_containerVolume[channel]);
-    
-    Serial.printf("[CH_MGR] CH%d refilled to %.1f ml\n", 
+
+    Serial.printf("[CH_MGR] CH%d refilled to %.1f ml\n",
                   channel, _containerVolume[channel].getContainerMl());
-    
+
     return framController.writeContainerVolume(channel, &_containerVolume[channel]);
 }
 
 bool ChannelManager::deductVolume(uint8_t channel, float ml) {
     if (channel >= CHANNEL_COUNT) return false;
     if (ml <= 0) return true;  // Nothing to deduct
-    
+
+    // Lock for atomic R/M/W operation (prevents race with refillContainer/web handlers)
+    ChannelLock lock;
+    if (!lock.isLocked()) {
+        Serial.println(F("[CH_MGR] WARNING: deductVolume failed to acquire lock"));
+    }
+
     float before = _containerVolume[channel].getRemainingMl();
     _containerVolume[channel].deduct(ml);
     _updateContainerVolumeCRC(&_containerVolume[channel]);
-    
+
     float after = _containerVolume[channel].getRemainingMl();
-    
-    Serial.printf("[CH_MGR] CH%d volume: %.1f -> %.1f ml (deducted %.2f ml)\n", 
+
+    Serial.printf("[CH_MGR] CH%d volume: %.1f -> %.1f ml (deducted %.2f ml)\n",
                   channel, before, after, ml);
-    
+
     // Check low volume warning
     if (_containerVolume[channel].isLowVolume()) {
         Serial.printf("[CH_MGR] WARNING: CH%d low volume! %.1f ml remaining (%.0f%%)\n",
                       channel, after, (float)_containerVolume[channel].getRemainingPercent());
     }
-    
+
     return framController.writeContainerVolume(channel, &_containerVolume[channel]);
 }
 
@@ -605,6 +669,12 @@ float ChannelManager::getTotalDosed(uint8_t channel) const {
 bool ChannelManager::addDosedVolume(uint8_t channel, float ml) {
     if (channel >= CHANNEL_COUNT) return false;
     if (ml <= 0) return true;  // Nothing to add
+
+    // Lock for atomic R/M/W operation (prevents concurrent dose tracking corruption)
+    ChannelLock lock;
+    if (!lock.isLocked()) {
+        Serial.println(F("[CH_MGR] WARNING: addDosedVolume failed to acquire lock"));
+    }
 
     _dosedTracker[channel].addDosed(ml);
     _updateDosedTrackerCRC(&_dosedTracker[channel]);

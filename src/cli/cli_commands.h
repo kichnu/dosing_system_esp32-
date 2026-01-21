@@ -9,10 +9,6 @@
 
 #include <Arduino.h>
 
-/**
- * Przetwarzaj komendę z Serial
- * Funkcja blokująca - czeka na input użytkownika
- */
 void processSerialCommand();
 
 #endif // CLI_COMMANDS_H
