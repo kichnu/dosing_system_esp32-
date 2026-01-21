@@ -478,16 +478,22 @@ bool ChannelManager::isEventFailed(uint8_t channel, uint8_t hour) const {
 
 bool ChannelManager::resetDailyStates() {
     Serial.println(F("[CH_MGR] Resetting daily states"));
-    
+
+    // Lock for atomic reset of ALL channels (prevents web reading inconsistent state)
+    ChannelLock lock;
+    if (!lock.isLocked()) {
+        Serial.println(F("[CH_MGR] WARNING: resetDailyStates failed to acquire lock"));
+    }
+
     for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
         _dailyState[i].reset();
         _updateDailyStateCRC(&_dailyState[i]);
-        
+
         if (!framController.writeDailyState(i, &_dailyState[i])) {
             return false;
         }
     }
-    
+
     recalculateAll();
     return true;
 }

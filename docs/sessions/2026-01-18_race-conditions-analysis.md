@@ -77,28 +77,6 @@
 
 ## HIGH (Priority 2)
 
-### 6. Web Handler Config Updates
-- **Location:** `web_server.cpp:260-283`
-- **Issue:** Sequential setters without transaction:
-  ```cpp
-  channelManager.setEventsBitmask(channel, events);  // FRAM write
-  channelManager.setDaysBitmask(channel, days);      // FRAM write
-  channelManager.setDailyDose(channel, dose);        // FRAM write
-  ```
-- **Scenario:** Scheduler reads config between calls → sees events but dose=0 → division by zero
-- **Fix:** Batch update method or transaction wrapper
-
-### 7. Container Volume Deduction Race
-- **Location:** `channel_manager.cpp:506-526`
-- **Issue:** Read-modify-write without lock:
-  ```cpp
-  float before = _containerVolume[channel].getRemainingMl();  // Read
-  _containerVolume[channel].deduct(ml);                        // Modify
-  framController.writeContainerVolume(...);                    // Write
-  ```
-- **Scenario:** Dosing deducts 5ml, web refills to 1000ml, dosing writes 95ml → lost refill
-- **Fix:** Critical section around R/M/W
-
 ### 8. Dosed Tracker Total Corruption
 - **Location:** `channel_manager.cpp:605-616`
 - **Issue:** Concurrent `addDosedVolume()` calls:

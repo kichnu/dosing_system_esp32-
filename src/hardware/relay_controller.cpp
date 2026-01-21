@@ -210,26 +210,31 @@ RelayResult RelayController::turnOffWithDuration(uint8_t channel, uint32_t* actu
 
 void RelayController::forceOffImmediate(uint8_t channel) {
     if (channel >= CHANNEL_COUNT) return;
-    
+
     Serial.printf("[RELAY] CH%d FORCE OFF (immediate)\n", channel);
-    
+
     // Wyłącz przekaźnik natychmiast
     _setRelay(channel, false);
-    
+
+    // Atomic state cleanup (prevents FSM race with main loop)
+    portENTER_CRITICAL(&_pumpMutex);
+
     // Wyczyść stan
     if (_channels[channel].is_on) {
         uint32_t duration = millis() - _channels[channel].on_since_ms;
         _channels[channel].total_on_time_ms += duration;
     }
     _channels[channel].is_on = false;
-    
+
     if (_activeChannel == channel) {
         _activeChannel = 255;
         _activeMaxDuration = 0;
     }
-    
+
     _validationState = GpioValidationState::IDLE;
     _pumpStartTime = 0;
+
+    portEXIT_CRITICAL(&_pumpMutex);
 }
 
 // ============================================================================
@@ -523,8 +528,11 @@ void RelayController::_validationFailed(GpioValidationState failState,
 // ============================================================================
 
 void RelayController::_transitionTo(GpioValidationState newState) {
+    // Atomic state transition (prevents FSM race between main loop and web handlers)
+    portENTER_CRITICAL(&_pumpMutex);
     _validationState = newState;
     _stateStartTime = millis();
+    portEXIT_CRITICAL(&_pumpMutex);
 }
 
 void RelayController::_setRelay(uint8_t channel, bool state) {
