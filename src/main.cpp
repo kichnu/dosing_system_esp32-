@@ -471,13 +471,17 @@ void loop() {
     static uint32_t lastNtpCheck = 0;
     if (millis() - lastNtpCheck > 60000) {  // Check every minute
         lastNtpCheck = millis();
-        
+
         if (initStatus.wifi_ok && initStatus.rtc_ok && rtcController.needsResync()) {
             Serial.println(F("[MAIN] NTP resync due..."));
-            rtcController.syncNTPWithRetry();
+            if (rtcController.syncNTPWithRetry()) {
+                // CRITICAL: Sync scheduler state BEFORE update() to prevent
+                // false daily reset detection due to time jump
+                dosingScheduler.syncTimeState();
+            }
         }
     }
-    
+
     // Update scheduler (main dosing logic)
     if (initStatus.scheduler_ok) {
         dosingScheduler.update();

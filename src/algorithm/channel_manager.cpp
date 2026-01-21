@@ -210,8 +210,46 @@ bool ChannelManager::setDosingRate(uint8_t channel, float rate) {
 
 bool ChannelManager::setEnabled(uint8_t channel, bool enabled) {
     if (channel >= CHANNEL_COUNT) return false;
-    
+
     _pendingConfig[channel].enabled = enabled ? 1 : 0;
+    return _savePendingConfig(channel);
+}
+
+bool ChannelManager::updatePendingConfigBatch(uint8_t channel, const ConfigUpdate& update) {
+    if (channel >= CHANNEL_COUNT) return false;
+
+    // Lock for atomic batch update (prevents scheduler reading partial config)
+    ChannelLock lock;
+    if (!lock.isLocked()) {
+        Serial.println(F("[CH_MGR] WARNING: updatePendingConfigBatch failed to acquire lock"));
+    }
+
+    // Apply all updates atomically to RAM cache
+    if (update.has_events) {
+        uint32_t events = update.events & 0x00FFFFFE;  // Mask valid hours
+        _pendingConfig[channel].events_bitmask = events;
+        _pendingConfig[channel].enabled = (events > 0) ? 1 : 0;
+    }
+
+    if (update.has_days) {
+        _pendingConfig[channel].days_bitmask = update.days & 0x7F;  // Mask valid days
+    }
+
+    if (update.has_dose) {
+        float dose = update.dose;
+        if (dose < 0) dose = 0;
+        if (dose > MAX_DAILY_DOSE_ML) dose = MAX_DAILY_DOSE_ML;
+        _pendingConfig[channel].daily_dose_ml = dose;
+    }
+
+    if (update.has_rate) {
+        float rate = update.rate;
+        if (rate < MIN_DOSING_RATE) rate = MIN_DOSING_RATE;
+        if (rate > MAX_DOSING_RATE) rate = MAX_DOSING_RATE;
+        _pendingConfig[channel].dosing_rate = rate;
+    }
+
+    // Single FRAM write with all changes
     return _savePendingConfig(channel);
 }
 

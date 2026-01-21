@@ -97,7 +97,25 @@ public:
      * Włącz/wyłącz kanał
      */
     bool setEnabled(uint8_t channel, bool enabled);
-    
+
+    /**
+     * Atomic batch update of pending config (prevents partial writes race condition)
+     * Use this from web handlers instead of individual setters.
+     * Only updates fields that have has_value = true.
+     * @return true if all updates succeeded
+     */
+    struct ConfigUpdate {
+        bool has_events = false;
+        uint32_t events = 0;
+        bool has_days = false;
+        uint8_t days = 0;
+        bool has_dose = false;
+        float dose = 0;
+        bool has_rate = false;
+        float rate = 0;
+    };
+    bool updatePendingConfigBatch(uint8_t channel, const ConfigUpdate& update);
+
     // --- Walidacja ---
     
     /**

@@ -253,33 +253,36 @@ void handleApiDosingConfig(AsyncWebServerRequest* request, uint8_t* data, size_t
     }
     
     Serial.printf("[WEB] Config update CH%d\n", channel);
-    
-    // Apply configuration to PENDING
-    bool success = true;
-    
-    if (doc.containsKey("events")) {
-        uint32_t events = doc["events"].as<uint32_t>();
-        success &= channelManager.setEventsBitmask(channel, events);
-        Serial.printf("  Events: 0x%06X\n", events);
+
+    // Build atomic config update (prevents partial writes race condition)
+    ChannelManager::ConfigUpdate update;
+
+    if (doc["events"].is<uint32_t>()) {
+        update.has_events = true;
+        update.events = doc["events"].as<uint32_t>();
+        Serial.printf("  Events: 0x%06X\n", update.events);
     }
-    
-    if (doc.containsKey("days")) {
-        uint8_t days = doc["days"].as<uint8_t>();
-        success &= channelManager.setDaysBitmask(channel, days);
-        Serial.printf("  Days: 0x%02X\n", days);
+
+    if (doc["days"].is<uint8_t>()) {
+        update.has_days = true;
+        update.days = doc["days"].as<uint8_t>();
+        Serial.printf("  Days: 0x%02X\n", update.days);
     }
-    
-    if (doc.containsKey("dailyDose")) {
-        float dose = doc["dailyDose"].as<float>();
-        success &= channelManager.setDailyDose(channel, dose);
-        Serial.printf("  Dose: %.2f ml\n", dose);
+
+    if (doc["dailyDose"].is<float>()) {
+        update.has_dose = true;
+        update.dose = doc["dailyDose"].as<float>();
+        Serial.printf("  Dose: %.2f ml\n", update.dose);
     }
-    
-    if (doc.containsKey("dosingRate")) {
-        float rate = doc["dosingRate"].as<float>();
-        success &= channelManager.setDosingRate(channel, rate);
-        Serial.printf("  Rate: %.3f ml/s\n", rate);
+
+    if (doc["dosingRate"].is<float>()) {
+        update.has_rate = true;
+        update.rate = doc["dosingRate"].as<float>();
+        Serial.printf("  Rate: %.3f ml/s\n", update.rate);
     }
+
+    // Apply all changes atomically
+    bool success = channelManager.updatePendingConfigBatch(channel, update);
     
     // Validate config
     ValidationError valErr;
