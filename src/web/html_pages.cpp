@@ -404,7 +404,7 @@ body.editing-locked .lockable-btn::before{content:'';width:11px;height:11px;flex
         <button type="button" class="lock-close-btn" onclick="hideLockForm()">&#215;</button>
     </form>
 <script>
-const CFG={CHANNEL_COUNT:8,EVENTS_PER_DAY:11,FIRST_EVENT_HOUR:2,LAST_EVENT_HOUR:22,CHANNEL_OFFSET_MIN:15,EVENT_WINDOW_SEC:300,MAX_PUMP_SEC:180,MIN_DOSE_ML:0.1,MIN_RATE:1/30,MAX_RATE:5.0,CALIB_SEC:30,SWIPE_THRESHOLD:50};
+const CFG={CHANNEL_COUNT:8,EVENTS_PER_DAY:11,FIRST_EVENT_HOUR:2,LAST_EVENT_HOUR:22,CHANNEL_OFFSET_MIN:15,CHANNEL_SLOT_MAP:[0,4,1,2,3,5,6,7],EVENT_WINDOW_SEC:300,MAX_PUMP_SEC:180,MIN_DOSE_ML:0.1,MIN_RATE:1/30,MAX_RATE:5.0,CALIB_SEC:30,SWIPE_THRESHOLD:50};
 const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 
 let channels=[];
@@ -468,8 +468,9 @@ function getNextEventHour(ch,chIdx){
     for(let h=CFG.FIRST_EVENT_HOUR;h<=CFG.LAST_EVENT_HOUR;h+=2){
         if(!(ch.events&(1<<h)))continue;
         if(ch.eventsCompleted&(1<<h))continue;
-        const actualH=h+Math.floor(chIdx*CFG.CHANNEL_OFFSET_MIN/60);
-        const actualM=(chIdx*CFG.CHANNEL_OFFSET_MIN)%60;
+        const chOffsetMin=CFG.CHANNEL_SLOT_MAP[chIdx]*CFG.CHANNEL_OFFSET_MIN;
+        const actualH=h+Math.floor(chOffsetMin/60);
+        const actualM=chOffsetMin%60;
         if(actualH>utcHour)return h;
         if(actualH===utcHour&&actualM>utcMinute)return h;
     }
@@ -495,7 +496,7 @@ function renderChannelCard(ch,idx){
 
     let eventsHtml='';
     // Parzyste godziny 02,04,...,22; rzeczywisty czas wykonania uwzględnia offset kanału
-    const chOffsetMin=idx*CFG.CHANNEL_OFFSET_MIN;
+    const chOffsetMin=CFG.CHANNEL_SLOT_MAP[idx]*CFG.CHANNEL_OFFSET_MIN;
     const chActualH=Math.floor(chOffsetMin/60);
     const chActualM=chOffsetMin%60;
     for(let h=CFG.FIRST_EVENT_HOUR;h<=CFG.LAST_EVENT_HOUR;h+=2){

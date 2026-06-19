@@ -205,7 +205,7 @@ bool DosingScheduler::forceDailyReset() {
 // Oblicz rzeczywistą godzinę i minutę wykonania dla danego kanału i godziny eventu
 void DosingScheduler::_getActualTime(uint8_t channel, uint8_t eventHour,
                                      uint8_t* outHour, uint8_t* outMinute) {
-    uint16_t totalMinutes = (uint16_t)channel * CHANNEL_OFFSET_MINUTES;
+    uint16_t totalMinutes = (uint16_t)CHANNEL_SLOT_MAP[channel] * CHANNEL_OFFSET_MINUTES;
     *outHour   = eventHour + totalMinutes / 60;
     *outMinute = totalMinutes % 60;
 }
