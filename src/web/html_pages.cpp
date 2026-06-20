@@ -231,6 +231,8 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .card-inner{border-left:none;border-right:none}
 .config-groups{flex-direction:column}
 .params-grid{grid-template-columns:1fr}
+.params-actions{flex-wrap:wrap}
+.params-actions .btn{flex:0 0 calc(50% - 4px)}
 }
 
 .container-bar{width:100%;height:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
@@ -396,6 +398,15 @@ body.editing-locked .lockable-btn::before{content:'';width:11px;height:11px;flex
                 <div class="modal-actions"><button class="btn btn-secondary" onclick="closeResetDosedModal()">Cancel</button><button class="btn btn-primary" onclick="confirmResetDosed()">Reset</button></div>
             </div>
         </div>
+        <div class="modal-overlay" id="applyPendingModal">
+            <div class="modal-box">
+                <div class="modal-icon warn"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+                <div class="modal-title">Apply Pending now?</div>
+                <div class="modal-text">Pending configuration becomes active immediately (instead of at midnight). Today's dosing progress for this channel will be erased — completed/failed events and today's dosed amount reset to zero, as if the day just started.</div>
+                <div class="modal-info"><div class="modal-info-label">Channel <span id="applyPendingModalCh">1</span></div></div>
+                <div class="modal-actions"><button class="btn btn-secondary" onclick="closeApplyPendingModal()">Cancel</button><button class="btn btn-primary" onclick="confirmApplyPending()">Apply Pending</button></div>
+            </div>
+        </div>
     </div>
     <form id="lockFormBar" class="lock-form-bar" onsubmit="submitUnlock();return false;" autocomplete="off">
         <input type="password" id="lockPwdInput" name="lock_pin" class="lock-pwd-input" placeholder="PIN…" inputmode="numeric" autocomplete="one-time-code" maxlength="8" pattern="[0-9]*">
@@ -530,7 +541,7 @@ ${renderNotesSection(idx)}
 <div class="section"><div class="section-header"><div class="section-title"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>Time Schedule (UTC)</div><span class="card-time">--:--:--</span></div><div class="section-body"><div class="events-grid">${eventsHtml}</div></div></div>
 <div class="section"><div class="section-header"><div class="section-title"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Active Days</div></div><div class="section-body"><div class="days-grid">${daysHtml}</div></div></div>
 ${renderParamsSection(idx)}
-<div class="section"><div class="section-header"><div class="section-title"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Configuration</div></div><div class="section-body"><div class="config-groups"><div class="config-group dose-group"><div class="params-grid"><div class="param-item"><label class="param-lbl">Daily Dose (ml)</label><input type="number" class="volume-input" id="dose_${idx}" value="${ch.dailyDose}" step="0.1" min="0" data-ch="${idx}"></div><div class="param-item"><div class="param-lbl">Single Dose</div><div class="param-val" id="single_${idx}">${single.toFixed(1)} ml</div></div><div class="param-item"><div class="param-lbl">Pump Time</div><div class="param-val" id="pumpTime_${idx}">${pumpTime.toFixed(1)} s</div></div><div class="param-item"><div class="param-lbl">Weekly</div><div class="param-val" id="weekly_${idx}">${weekly.toFixed(1)} ml</div></div></div></div><div class="config-group container-group"><div class="params-grid"><div class="param-item"><label class="param-lbl">Container Size (ml)</label><input type="number" class="volume-input" id="container_${idx}" value="${ch.containerMl||1000}" step="10" min="100" max="5000" onchange="saveContainerSize(${idx})"></div><div class="param-item"><div class="param-lbl">Days Left</div><div class="param-val" id="daysLeft_${idx}">${ch.daysRemaining?ch.daysRemaining.toFixed(1):'∞'}</div></div><div class="param-item"><div class="param-lbl-row"><span class="param-lbl ${ch.lowVolume?'low':''}">Remaining</span><span class="param-unit">ML</span></div><div class="param-bar-box"><span class="param-bar-val ${ch.lowVolume?'low':''}" id="remainingLabel_${idx}">${(ch.remainingMl||1000).toFixed(0)}</span><div class="container-bar"><div class="container-bar-fill ${ch.lowVolume?'low':''}" id="containerBar_${idx}" style="width:${ch.remainingPct||100}%"></div></div></div></div><div class="param-item"><div class="param-lbl-row"><span class="param-lbl">Dosed</span><span class="param-unit">ML</span></div><div class="param-bar-box"><span class="param-bar-val" id="dosedLabel_${idx}">${(ch.totalDosedMl||0).toFixed(1)}</span><div class="container-bar"><div class="container-bar-fill dosed" id="dosedBar_${idx}" style="width:${weekly>0?Math.min(100,(ch.totalDosedMl||0)/weekly*100):0}%"></div></div></div></div></div></div></div><div class="calib-section"><div class="param-lbl">Pump Calibration</div><div class="calib-inner"><input type="number" class="calib-input-field" id="calibMl_${idx}" placeholder="— ml" step="0.1" min="0" value="${ch.dosingRate>0?(ch.dosingRate*CFG.CALIB_SEC).toFixed(2):''}" data-ch="${idx}"><button class="calib-run-btn" id="calibBtn_${idx}" onclick="runCalib(${idx})">Run Pump (30s)</button></div></div><div class="params-actions"><button class="btn btn-primary lockable-btn" id="saveBtn_${idx}" onclick="showSaveModal(${idx})"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>Save</button><button class="btn btn-primary lockable-btn" onclick="showRefillModal(${idx})"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>Refill</button><button class="btn btn-primary lockable-btn" onclick="showResetDosedModal(${idx})"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Reset Dosed</button></div><div class="valid-msg ${validClass}" id="validMsg_${idx}"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">${validIcon}</svg><span id="validTxt_${idx}">${validMsg}</span></div></div></div>
+<div class="section"><div class="section-header"><div class="section-title"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Configuration</div></div><div class="section-body"><div class="config-groups"><div class="config-group dose-group"><div class="params-grid"><div class="param-item"><label class="param-lbl">Daily Dose (ml)</label><input type="number" class="volume-input" id="dose_${idx}" value="${ch.dailyDose}" step="0.1" min="0" data-ch="${idx}"></div><div class="param-item"><div class="param-lbl">Single Dose</div><div class="param-val" id="single_${idx}">${single.toFixed(1)} ml</div></div><div class="param-item"><div class="param-lbl">Pump Time</div><div class="param-val" id="pumpTime_${idx}">${pumpTime.toFixed(1)} s</div></div><div class="param-item"><div class="param-lbl">Weekly</div><div class="param-val" id="weekly_${idx}">${weekly.toFixed(1)} ml</div></div></div></div><div class="config-group container-group"><div class="params-grid"><div class="param-item"><label class="param-lbl">Container Size (ml)</label><input type="number" class="volume-input" id="container_${idx}" value="${ch.containerMl||1000}" step="10" min="100" max="5000" onchange="saveContainerSize(${idx})"></div><div class="param-item"><div class="param-lbl">Days Left</div><div class="param-val" id="daysLeft_${idx}">${ch.daysRemaining?ch.daysRemaining.toFixed(1):'∞'}</div></div><div class="param-item"><div class="param-lbl-row"><span class="param-lbl ${ch.lowVolume?'low':''}">Remaining</span><span class="param-unit">ML</span></div><div class="param-bar-box"><span class="param-bar-val ${ch.lowVolume?'low':''}" id="remainingLabel_${idx}">${(ch.remainingMl||1000).toFixed(0)}</span><div class="container-bar"><div class="container-bar-fill ${ch.lowVolume?'low':''}" id="containerBar_${idx}" style="width:${ch.remainingPct||100}%"></div></div></div></div><div class="param-item"><div class="param-lbl-row"><span class="param-lbl">Dosed</span><span class="param-unit">ML</span></div><div class="param-bar-box"><span class="param-bar-val" id="dosedLabel_${idx}">${(ch.totalDosedMl||0).toFixed(1)}</span><div class="container-bar"><div class="container-bar-fill dosed" id="dosedBar_${idx}" style="width:${weekly>0?Math.min(100,(ch.totalDosedMl||0)/weekly*100):0}%"></div></div></div></div></div></div></div><div class="calib-section"><div class="param-lbl">Pump Calibration</div><div class="calib-inner"><input type="number" class="calib-input-field" id="calibMl_${idx}" placeholder="— ml" step="0.1" min="0" value="${ch.dosingRate>0?(ch.dosingRate*CFG.CALIB_SEC).toFixed(2):''}" data-ch="${idx}"><button class="calib-run-btn" id="calibBtn_${idx}" onclick="runCalib(${idx})">Run Pump (30s)</button></div></div><div class="params-actions"><button class="btn btn-primary lockable-btn" id="saveBtn_${idx}" onclick="showSaveModal(${idx})"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>Save</button><button class="btn btn-primary lockable-btn" onclick="showRefillModal(${idx})"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>Refill</button><button class="btn btn-primary lockable-btn" onclick="showResetDosedModal(${idx})"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Reset Dosed</button><button class="btn btn-primary lockable-btn" onclick="showApplyPendingModal(${idx})"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Apply Pending</button></div><div class="valid-msg ${validClass}" id="validMsg_${idx}"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">${validIcon}</svg><span id="validTxt_${idx}">${validMsg}</span></div></div></div>
 </div>
 </div>
 </div></div>`;
@@ -907,12 +918,39 @@ function confirmResetDosed(){
     const idx=pendingResetDosedChannel;closeResetDosedModal();
     resetDosed(idx);resetLockTimer();
 }
+let pendingApplyPendingChannel=-1;
+function showApplyPendingModal(idx){
+    pendingApplyPendingChannel=idx;
+    const el=document.getElementById('applyPendingModalCh');if(el)el.textContent=idx+1;
+    document.getElementById('applyPendingModal').classList.add('show');
+}
+function closeApplyPendingModal(){document.getElementById('applyPendingModal').classList.remove('show');pendingApplyPendingChannel=-1;}
+function confirmApplyPending(){
+    if(pendingApplyPendingChannel<0){closeApplyPendingModal();return;}
+    const idx=pendingApplyPendingChannel;closeApplyPendingModal();
+    fetch(`api/apply-pending?channel=${idx}`,{method:'POST'}).then(r=>r.json()).then(data=>{
+        if(data.success){
+            const ch=channels[idx];
+            ch.dailyDose=data.dailyDose;ch.dosingRate=data.dosingRate;ch.events=data.events;ch.days=data.days;
+            ch.enabled=data.enabled;ch.hasPending=false;ch.state=data.isValid?'configured':'incomplete';
+            ch.daysRemaining=data.daysRemaining;ch.eventsCompleted=0;ch.eventsFailed=0;ch.todayDosed=0;
+            editingChannel=-1;resetLockTimer();renderChannels();
+            showAlert('Success','Pending changes applied. Today\'s progress for this channel was reset.','ok');
+        }else{
+            showAlert('Error','Apply failed: '+(data.error||'Unknown error'),'err');
+        }
+    }).catch(()=>showAlert('Error','Connection error','err'));
+}
 // ── ParamLog CRUD ────────────────────────────────────────────────────────
 function loadParamLog(){
     fetch('api/paramlog').then(r=>r.json()).then(data=>{
         paramLog=data;
         for(let c=0;c<8;c++) chTmplAssign[c]=[];
-        getValidRecs().forEach(r=>{if(!chTmplAssign[r.channel].includes(r.tmpl_idx))chTmplAssign[r.channel].push(r.tmpl_idx);});
+        paramLog.templates.forEach((t,tmplId)=>{
+            if(!(t.flags&1)) return;
+            const mask=t.channel_mask|0;
+            for(let c=0;c<8;c++){if(mask&(1<<c)) chTmplAssign[c].push(tmplId);}
+        });
         for(let c=0;c<CFG.CHANNEL_COUNT;c++) refreshParams(c);
     }).catch(()=>{});
 }
@@ -969,12 +1007,14 @@ function assignTmpl(ch){
     if(!sel||!sel.value) return;
     const id=parseInt(sel.value);
     if(!chTmplAssign[ch].includes(id)) chTmplAssign[ch].push(id);
-    refreshParams(ch);
+    paramLog.templates[id].channel_mask=(paramLog.templates[id].channel_mask|0)|(1<<ch);
+    saveParamLog(()=>refreshParams(ch));
 }
 function removeTmpl(ch,tmplId){
     chTmplAssign[ch]=chTmplAssign[ch].filter(id=>id!==tmplId);
+    paramLog.templates[tmplId].channel_mask=(paramLog.templates[tmplId].channel_mask|0)&~(1<<ch);
     const cs=getChartState(ch,tmplId);cs.open=false;
-    refreshParams(ch);
+    saveParamLog(()=>refreshParams(ch));
 }
 function showNewTmplForm(ch){
     const btn=document.getElementById('newTmplBtn_'+ch);if(btn)btn.style.display='none';
@@ -996,7 +1036,7 @@ function createTmpl(ch){
     let slot=-1;
     for(let i=0;i<20;i++){if(!(paramLog.templates[i].flags&1)){slot=i;break;}}
     if(slot<0){showAlert('Full','No free template slots','warn');return;}
-    paramLog.templates[slot]={name:name,unit:(unitEl?unitEl.value:'').trim(),flags:1};
+    paramLog.templates[slot]={name:name,unit:(unitEl?unitEl.value:'').trim(),flags:1,channel_mask:(1<<ch)};
     paramLog.tmpl_count++;
     if(!chTmplAssign[ch].includes(slot)) chTmplAssign[ch].push(slot);
     hideNewTmplForm(ch);
@@ -1111,7 +1151,7 @@ function getValidRecs(){
     if(!paramLog||!Array.isArray(paramLog.ring)) return [];
     return paramLog.ring.map((r,i)=>Object.assign({},r,{_ri:i})).filter(r=>r.flags&1).sort((a,b)=>a.timestamp-b.timestamp);
 }
-function getChartRecs(ch,tmplId){return getValidRecs().filter(r=>r.tmpl_idx===tmplId&&r.channel===ch);}
+function getChartRecs(ch,tmplId){return getValidRecs().filter(r=>r.tmpl_idx===tmplId);}
 function fmtTs(ts){const s=new Date(ts*1000).toISOString();return s.slice(8,10)+'-'+s.slice(5,7)+'-'+s.slice(0,4)+' '+s.slice(11,16);}
 
 function toggleParams(idx){
@@ -1141,9 +1181,9 @@ function renderParamsSection(idx){
         return '<div class="params-section" id="paramsSec_'+idx+'">'+hdr+'<span class="params-preview empty">Loading parameters…</span></div></div>';
     }
     const ids=chTmplAssign[idx];
-    const chRecs=getValidRecs().filter(r=>r.channel===idx);
+    const chRecCount=ids.reduce((s,id)=>s+getChartRecs(idx,id).length,0);
     const empty=ids.length===0;
-    const summary=empty?'— no templates assigned':ids.length+' template'+(ids.length!==1?'s':'')+' \xb7 '+chRecs.length+' record'+(chRecs.length!==1?'s':'');
+    const summary=empty?'— no templates assigned':ids.length+' template'+(ids.length!==1?'s':'')+' \xb7 '+chRecCount+' record'+(chRecCount!==1?'s':'');
     let tmplHtml=empty
         ?'<div class="params-empty">No templates assigned — use controls below</div>'
         :ids.map(function(tmplId){

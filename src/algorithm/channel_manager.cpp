@@ -498,6 +498,27 @@ bool ChannelManager::resetDailyStates() {
     return true;
 }
 
+bool ChannelManager::resetDailyState(uint8_t channel) {
+    if (channel >= CHANNEL_COUNT) return false;
+
+    Serial.printf("[CH_MGR] Resetting daily state CH%d\n", channel);
+
+    ChannelLock lock;
+    if (!lock.isLocked()) {
+        Serial.println(F("[CH_MGR] WARNING: resetDailyState failed to acquire lock"));
+    }
+
+    _dailyState[channel].reset();
+    _updateDailyStateCRC(&_dailyState[channel]);
+
+    if (!framController.writeDailyState(channel, &_dailyState[channel])) {
+        return false;
+    }
+
+    recalculate(channel);
+    return true;
+}
+
 bool ChannelManager::isEventCompleted(uint8_t channel, uint8_t hour) const {
     if (channel >= CHANNEL_COUNT) return false;
     return _dailyState[channel].isEventCompleted(hour);

@@ -892,6 +892,61 @@ void handleApiResetDosed(AsyncWebServerRequest* request) {
     Serial.printf("[WEB] Reset dosed CH%d: %s\n", channel, success ? "OK" : "FAILED");
 }
 
+// ============================================================================
+// API: APPLY PENDING - Natychmiastowe zatwierdzenie pending configu (jak CLI 'n')
+// + reset stanu dobowego TYLKO dla tego kanału (nadpisuje dzisiejszy postęp)
+// ============================================================================
+
+void handleApiApplyPending(AsyncWebServerRequest* request) {
+    if (!isAuthenticated(request)) {
+        request->send(401, "application/json", "{\"success\":false,\"error\":\"Unauthorized\"}");
+        return;
+    }
+
+    if (!request->hasParam("channel")) {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Missing channel\"}");
+        return;
+    }
+
+    uint8_t channel = request->getParam("channel")->value().toInt();
+
+    if (channel >= CHANNEL_COUNT) {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid channel\"}");
+        return;
+    }
+
+    Serial.printf("[WEB] Apply pending request CH%d\n", channel);
+
+    bool applyOk = channelManager.applyPendingChanges(channel);
+    bool resetOk = channelManager.resetDailyState(channel);
+    bool success = applyOk && resetOk;
+
+    const ChannelConfig& active = channelManager.getActiveConfig(channel);
+    const ChannelCalculated& calc = channelManager.getCalculated(channel);
+
+    JsonDocument resp;
+    resp["success"] = success;
+    resp["channel"] = channel;
+    resp["dailyDose"] = active.daily_dose_ml;
+    resp["dosingRate"] = active.dosing_rate;
+    resp["events"] = active.events_bitmask;
+    resp["days"] = active.days_bitmask;
+    resp["enabled"] = (bool)active.enabled;
+    resp["hasPending"] = false;
+    resp["daysRemaining"] = channelManager.getDaysRemaining(channel);
+    resp["eventsCompleted"] = 0;
+    resp["eventsFailed"] = 0;
+    resp["todayDosed"] = 0;
+    resp["isValid"] = calc.is_valid;
+    resp["message"] = success ? "Pending changes applied" : "Apply failed";
+
+    String response;
+    serializeJson(resp, response);
+    request->send(200, "application/json", response);
+
+    Serial.printf("[WEB] Apply pending CH%d: %s\n", channel, success ? "OK" : "FAILED");
+}
+
 void handleHealth(AsyncWebServerRequest* request) {
     IPAddress sourceIP = request->client()->remoteIP();
     if (!isIPWhitelisted(sourceIP) && !isTrustedProxy(sourceIP)) {
@@ -1025,6 +1080,7 @@ void handleApiParamLogGet(AsyncWebServerRequest* request) {
         t["name"]  = log->templates[i].name;
         t["unit"]  = log->templates[i].unit;
         t["flags"] = log->templates[i].flags;
+        t["channel_mask"] = log->templates[i].channel_mask;
     }
 
     JsonArray rArr = doc["ring"].to<JsonArray>();
@@ -1092,7 +1148,8 @@ void handleApiParamLogPost(AsyncWebServerRequest* request, uint8_t* data, size_t
         log->templates[i].name[19] = '\0';
         strncpy(log->templates[i].unit, unit, 7);
         log->templates[i].unit[7]  = '\0';
-        log->templates[i].flags    = (uint8_t)(t["flags"] | 0);
+        log->templates[i].flags        = (uint8_t)(t["flags"] | 0);
+        log->templates[i].channel_mask = (uint8_t)(t["channel_mask"] | 0);
     }
 
     JsonArray rArr = doc["ring"].as<JsonArray>();
@@ -1147,6 +1204,7 @@ void initWebServer() {
     server.on("/api/container-volume", HTTP_POST, [](AsyncWebServerRequest* request){}, NULL, handleApiContainerVolumeSet);
     server.on("/api/refill", HTTP_POST, handleApiRefill);
     server.on("/api/reset-dosed", HTTP_POST, handleApiResetDosed);
+    server.on("/api/apply-pending", HTTP_POST, handleApiApplyPending);
 
     // === SHARED NOTES API ===
     server.on("/api/notes", HTTP_GET, handleApiNotesGet);

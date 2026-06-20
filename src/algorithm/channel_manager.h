@@ -246,6 +246,11 @@ public:
      * Reset stanów dziennych (o północy)
      */
     bool resetDailyStates();
+
+    /**
+     * Reset stanu dziennego jednego kanału (np. przy Apply Pending z GUI)
+     */
+    bool resetDailyState(uint8_t channel);
     
     /**
      * Czy event został wykonany
