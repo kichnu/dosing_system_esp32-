@@ -674,8 +674,13 @@ float ChannelManager::getContainerCapacity(uint8_t channel) const {
 float ChannelManager::getDaysRemaining(uint8_t channel) const {
     if (channel >= CHANNEL_COUNT) return 0;
     
-    const ChannelConfig& cfg = _activeConfig[channel];
-    
+    // Use pending config if it has unsaved changes, same as the rest of the
+    // GUI fields (dailyDose, events, days) — otherwise Days Left disagrees
+    // with the values shown next to it until the midnight rollover.
+    const ChannelConfig& cfg = _pendingConfig[channel].has_pending
+        ? _pendingConfig[channel]
+        : _activeConfig[channel];
+
     // If no daily dose configured, infinite days
     if (cfg.daily_dose_ml <= 0) return 999.0f;
     

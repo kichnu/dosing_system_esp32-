@@ -8,7 +8,7 @@ Days Left na GUI pokazuje wartość niezgodną z resztą pól (Daily Dose, Weekl
 
 **Rozwiązanie:** `getDaysRemaining()` ma używać tej samej config (pending jeśli istnieje), co reszta pól w `/api/status`.
 
-*Status: niewykonane.*
+*Status: wykonane.*
 
 ## 2. Brak przycisku do natychmiastowego zatwierdzenia pending configu
 
