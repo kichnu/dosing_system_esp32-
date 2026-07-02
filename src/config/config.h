@@ -150,8 +150,13 @@ static const uint8_t CHANNEL_SLOT_MAP[CHANNEL_COUNT] = {0, 4, 1, 2, 3, 5, 6, 7};
 // ============================================================================
 // PUMP TIMING
 // ============================================================================
-#define MAX_PUMP_DURATION_SECONDS   180
-#define MAX_PUMP_DURATION_MS        (MAX_PUMP_DURATION_SECONDS * 1000UL)
+#define MAX_PUMP_DURATION_SECONDS       180
+#define MAX_PUMP_DURATION_MS            (MAX_PUMP_DURATION_SECONDS * 1000UL)
+
+// Channel 7: air pump (duration mode — seconds, not ml)
+#define AIR_PUMP_CHANNEL                7
+#define MAX_AIR_PUMP_DURATION_SECONDS   600
+#define MAX_AIR_PUMP_DURATION_MS        (MAX_AIR_PUMP_DURATION_SECONDS * 1000UL)
 
 #define CALIBRATION_DURATION_SEC    30
 #define CALIBRATION_DURATION_MS     (CALIBRATION_DURATION_SEC * 1000UL)
@@ -267,8 +272,6 @@ inline uint8_t popcount32(uint32_t n) {
 #define BUZZER_PIN                    5
 #define BUZZER_ACTIVE                 LOW
 #define BUZZER_INACTIVE               HIGH
-#define BUZZER_ERROR_ON_MS            100
-#define BUZZER_ERROR_OFF_MS           500
 
 // Reset button
 #define RESET_BUTTON_PIN              4

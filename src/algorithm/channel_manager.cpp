@@ -188,11 +188,12 @@ bool ChannelManager::setDaysBitmask(uint8_t channel, uint8_t bitmask) {
 
 bool ChannelManager::setDailyDose(uint8_t channel, float dose_ml) {
     if (channel >= CHANNEL_COUNT) return false;
-    
+
     // Clamp to valid range
     if (dose_ml < 0) dose_ml = 0;
-    if (dose_ml > MAX_DAILY_DOSE_ML) dose_ml = MAX_DAILY_DOSE_ML;
-    
+    float maxDose = (channel == AIR_PUMP_CHANNEL) ? (float)MAX_AIR_PUMP_DURATION_SECONDS : MAX_DAILY_DOSE_ML;
+    if (dose_ml > maxDose) dose_ml = maxDose;
+
     _pendingConfig[channel].daily_dose_ml = dose_ml;
     return _savePendingConfig(channel);
 }
@@ -238,7 +239,8 @@ bool ChannelManager::updatePendingConfigBatch(uint8_t channel, const ConfigUpdat
     if (update.has_dose) {
         float dose = update.dose;
         if (dose < 0) dose = 0;
-        if (dose > MAX_DAILY_DOSE_ML) dose = MAX_DAILY_DOSE_ML;
+        float maxDose = (channel == AIR_PUMP_CHANNEL) ? (float)MAX_AIR_PUMP_DURATION_SECONDS : MAX_DAILY_DOSE_ML;
+        if (dose > maxDose) dose = maxDose;
         _pendingConfig[channel].daily_dose_ml = dose;
     }
 
@@ -278,7 +280,30 @@ bool ChannelManager::validateConfig(uint8_t channel, ValidationError* error) {
         if (error) error->has_error = false;
         return true;
     }
-    
+
+    // Channel 7: air pump — duration mode, dailyDose stores seconds not ml
+    if (channel == AIR_PUMP_CHANNEL) {
+        if (cfg.days_bitmask == 0) {
+            if (error) {
+                error->has_error = true;
+                error->channel = channel;
+                snprintf(error->message, sizeof(error->message), "No days selected");
+            }
+            return false;
+        }
+        if (cfg.daily_dose_ml <= 0 || cfg.daily_dose_ml > MAX_AIR_PUMP_DURATION_SECONDS) {
+            if (error) {
+                error->has_error = true;
+                error->channel = channel;
+                snprintf(error->message, sizeof(error->message),
+                         "Duration must be 1-%ds", MAX_AIR_PUMP_DURATION_SECONDS);
+            }
+            return false;
+        }
+        if (error) error->has_error = false;
+        return true;
+    }
+
     // Check days
     if (cfg.days_bitmask == 0) {
         if (error) {

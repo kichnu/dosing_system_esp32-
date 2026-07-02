@@ -370,7 +370,8 @@ struct ParamTemplate {          // 32B
     char    name[20];           // nazwa parametru, null-terminated
     char    unit[8];            // jednostka, null-terminated
     uint8_t flags;              // bit0: slot zajęty
-    uint8_t _pad[3];
+    uint8_t channel_mask;        // bit i: szablon przypisany (widoczny) na kanale i — wartości w ring są GLOBALNE per tmpl_idx, ta maska steruje tylko widocznością bloku w GUI kanału
+    uint8_t _pad[2];
 };
 static_assert(sizeof(ParamTemplate) == 32, "ParamTemplate must be 32 bytes");
 

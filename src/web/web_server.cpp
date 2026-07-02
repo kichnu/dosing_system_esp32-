@@ -416,14 +416,16 @@ void handleApiDosingConfig(AsyncWebServerRequest* request, uint8_t* data, size_t
         }
     }
 
-    // Daily dose: MIN_SINGLE_DOSE_ML - MAX_DAILY_DOSE_ML
+    // Daily dose: MIN_SINGLE_DOSE_ML - MAX_DAILY_DOSE_ML (air pump: 1-MAX_AIR_PUMP_DURATION_SECONDS s)
     if (doc["dailyDose"].is<float>()) {
         float dose = doc["dailyDose"].as<float>();
-        if (dose < MIN_SINGLE_DOSE_ML || dose > MAX_DAILY_DOSE_ML) {
+        float maxDose = (channel == AIR_PUMP_CHANNEL) ? (float)MAX_AIR_PUMP_DURATION_SECONDS : MAX_DAILY_DOSE_ML;
+        if (dose < MIN_SINGLE_DOSE_ML || dose > maxDose) {
             char errMsg[80];
             snprintf(errMsg, sizeof(errMsg),
-                "{\"success\":false,\"error\":\"Invalid dailyDose (valid: %.1f-%.0f ml)\"}",
-                (float)MIN_SINGLE_DOSE_ML, (float)MAX_DAILY_DOSE_ML);
+                "{\"success\":false,\"error\":\"Invalid dailyDose (valid: %.1f-%.0f %s)\"}",
+                (float)MIN_SINGLE_DOSE_ML, maxDose,
+                (channel == AIR_PUMP_CHANNEL) ? "s" : "ml");
             request->send(400, "application/json", errMsg);
             return;
         }
@@ -563,6 +565,87 @@ void handleApiCalibrate(AsyncWebServerRequest* request) {
     String response;
     serializeJson(resp, response);
     request->send(200, "application/json", response);
+}
+
+// ============================================================================
+// API: PUMP HOLD (POST) - Momentary "press and hold" manual pump run.
+// No client-visible timer: MAX_PUMP_DURATION_MS (relay_controller) is the
+// only backstop if the stop request is never received.
+// ============================================================================
+
+void handleApiPumpStart(AsyncWebServerRequest* request) {
+    if (!isAuthenticated(request)) {
+        request->send(401, "application/json", "{\"success\":false,\"error\":\"Unauthorized\"}");
+        return;
+    }
+
+    if (!request->hasParam("channel")) {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Missing channel\"}");
+        return;
+    }
+
+    uint8_t channel = request->getParam("channel")->value().toInt();
+
+    if (channel >= CHANNEL_COUNT) {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid channel\"}");
+        return;
+    }
+
+    if (relayController.isAnyOn()) {
+        request->send(409, "application/json", "{\"success\":false,\"error\":\"Pump busy\"}");
+        return;
+    }
+
+    const uint32_t PUMP_HOLD_MAX_DURATION_MS = 60000; // backstop if stop request is never received
+    RelayResult res = relayController.turnOn(channel, PUMP_HOLD_MAX_DURATION_MS);
+
+    if (res != RelayResult::OK) {
+        String errJson = "{\"success\":false,\"error\":\"";
+        errJson += RelayController::resultToString(res);
+        errJson += "\"}";
+        request->send(500, "application/json", errJson);
+        return;
+    }
+
+    Serial.printf("[WEB] Pump hold START CH%d\n", channel);
+    request->send(200, "application/json", "{\"success\":true}");
+}
+
+void handleApiPumpStop(AsyncWebServerRequest* request) {
+    if (!isAuthenticated(request)) {
+        request->send(401, "application/json", "{\"success\":false,\"error\":\"Unauthorized\"}");
+        return;
+    }
+
+    if (!request->hasParam("channel")) {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Missing channel\"}");
+        return;
+    }
+
+    uint8_t channel = request->getParam("channel")->value().toInt();
+
+    if (channel >= CHANNEL_COUNT) {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid channel\"}");
+        return;
+    }
+
+    RelayResult res = relayController.turnOff(channel);
+
+    // ALREADY_OFF is fine here — the button may send stop more than once
+    // (e.g. mouseup + mouseleave) or after the backstop already fired.
+    bool success = (res == RelayResult::OK || res == RelayResult::ERROR_ALREADY_OFF);
+
+    Serial.printf("[WEB] Pump hold STOP CH%d: %s\n", channel, success ? "OK" : "FAILED");
+
+    if (!success) {
+        String errJson = "{\"success\":false,\"error\":\"";
+        errJson += RelayController::resultToString(res);
+        errJson += "\"}";
+        request->send(500, "application/json", errJson);
+        return;
+    }
+
+    request->send(200, "application/json", "{\"success\":true}");
 }
 
 // ============================================================================
@@ -1195,6 +1278,8 @@ void initWebServer() {
     server.on("/api/dosing-status", HTTP_GET, handleApiDosingStatus); 
     server.on("/api/dosing-config", HTTP_POST, [](AsyncWebServerRequest* request){}, NULL, handleApiDosingConfig);
     server.on("/api/calibrate", HTTP_POST, handleApiCalibrate);
+    server.on("/api/pump-start", HTTP_POST, handleApiPumpStart);
+    server.on("/api/pump-stop", HTTP_POST, handleApiPumpStop);
     server.on("/api/scheduler", HTTP_POST, handleApiScheduler);
     server.on("/api/manual-dose", HTTP_POST, handleApiManualDose);
     server.on("/api/daily-reset", HTTP_POST, handleApiDailyReset);
