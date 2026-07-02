@@ -23,6 +23,7 @@
 #include "provisioning/ap_server.h"
 #include "config/credentials_manager.h"
 #include "hardware/safety_manager.h"
+#include "hardware/buzzer_controller.h"
 #include "security/session_manager.h"
 #include "security/rate_limiter.h"
 
@@ -282,7 +283,11 @@ void setup() {
     }
     delay(500);
 
-     // === CHECK PROVISIONING BUTTON (before any other init) ===
+    // === BUZZER: init GPIO + task, sygnał startu ===
+    initBuzzer();
+    buzzerPowerOn();
+
+    // === CHECK PROVISIONING BUTTON (before any other init) ===
     if (checkProvisioningButton()) {
         Serial.println();
         Serial.println(F("+=======================================+"));
@@ -351,7 +356,7 @@ void setup() {
         Serial.println(F("[MAIN] Only reset button will be handled"));
         
         while (safetyManager.isCriticalErrorActive()) {
-            safetyManager.update();  // Obsługa buzzera i przycisku
+            safetyManager.update();  // Obsługa przycisku reset
             delay(10);
         }
         
@@ -360,6 +365,9 @@ void setup() {
         delay(1000);
         ESP.restart();
     }
+
+    // Sygnał dźwiękowy: inicjalizacja zakończona pomyślnie
+    buzzerOK();
 
     // === POST-INIT ===
     #if ENABLE_CLI

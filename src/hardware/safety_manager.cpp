@@ -3,6 +3,7 @@
  */
 
 #include "safety_manager.h"
+#include "buzzer_controller.h"
 #include "fram_layout.h"
 #include "rtc_controller.h"
 #include "fram_controller.h"
@@ -24,11 +25,6 @@ void SafetyManager::begin() {
     digitalWrite(MASTER_RELAY_PIN, MASTER_RELAY_INACTIVE);
     _masterRelayEnabled = false;
     Serial.println(F("[SAFETY] Master relay: INACTIVE (safe default)"));
-    
-    // Buzzer - domyślnie OFF
-    pinMode(BUZZER_PIN, OUTPUT);
-    digitalWrite(BUZZER_PIN, BUZZER_INACTIVE);
-    _buzzerState = false;
     
     // Reset button - input z pull-up
     pinMode(RESET_BUTTON_PIN, INPUT_PULLUP);
@@ -80,11 +76,6 @@ bool SafetyManager::enableIfSafe() {
 void SafetyManager::update() {
     if (!_initialized) return;
     
-    // Obsługa wzorca buzzera (jeśli błąd aktywny)
-    if (_errorActive) {
-        _updateBuzzerPattern();
-    }
-    
     // Obsługa przycisku reset
     _handleResetButton();
 }
@@ -118,9 +109,7 @@ void SafetyManager::triggerCriticalError(CriticalErrorType type,
     Serial.println(F("[CRITICAL] Error saved to FRAM"));
 
     _errorActive = true;
-    _buzzerState = true;
-    digitalWrite(BUZZER_PIN, BUZZER_ACTIVE);
-    _buzzerLastToggle = millis();
+    setBuzzerMode(BuzzerMode::ALARM);
 
     Serial.printf("[CRITICAL] Type: %s (%d)\n", errorTypeToString(type), type);
     Serial.printf("[CRITICAL] Channel: %d\n", channel);
@@ -140,7 +129,7 @@ bool SafetyManager::resetCriticalError() {
     Serial.println(F("[SAFETY] === CRITICAL ERROR RESET ==="));
     
     // 1. Wyłącz buzzer
-    _setBuzzer(false);
+    setBuzzerMode(BuzzerMode::OFF);
     
     // 2. Aktualizuj strukturę
     _currentError.active_flag = 0;
@@ -160,7 +149,7 @@ bool SafetyManager::resetCriticalError() {
     Serial.println(F("[SAFETY] Master relay RE-ENABLED"));
     
     // 6. Potwierdzenie dźwiękiem (2x krótki beep)
-    _confirmResetBeep();
+    buzzerOK();
     
     Serial.println(F("[SAFETY] System unlocked - normal operation resumed"));
     Serial.println(F(""));
@@ -176,23 +165,6 @@ void SafetyManager::_setMasterRelay(bool enabled) {
     digitalWrite(MASTER_RELAY_PIN, enabled ? MASTER_RELAY_ACTIVE : MASTER_RELAY_INACTIVE);
     _masterRelayEnabled = enabled;
     Serial.printf("[SAFETY] Master relay: %s\n", enabled ? "ENABLED" : "DISABLED");
-}
-
-void SafetyManager::_setBuzzer(bool on) {
-    digitalWrite(BUZZER_PIN, on ? BUZZER_ACTIVE : BUZZER_INACTIVE);
-    _buzzerState = on;
-}
-
-void SafetyManager::_updateBuzzerPattern() {
-    // Wzorzec: ON 0.5s, OFF 1.0s
-    unsigned long now = millis();
-    unsigned long interval = _buzzerState ? BUZZER_ERROR_ON_MS : BUZZER_ERROR_OFF_MS;
-    
-    if (now - _buzzerLastToggle >= interval) {
-        _buzzerState = !_buzzerState;
-        digitalWrite(BUZZER_PIN, _buzzerState ? BUZZER_ACTIVE : BUZZER_INACTIVE);
-        _buzzerLastToggle = now;
-    }
 }
 
 void SafetyManager::_handleResetButton() {
@@ -281,16 +253,6 @@ void SafetyManager::_clearErrorInFRAM() {
                                           sizeof(CriticalErrorState) - sizeof(uint32_t));
     
     framController.writeBytes(FRAM_ADDR_CRITICAL_ERROR, &_currentError, sizeof(CriticalErrorState));
-}
-
-void SafetyManager::_confirmResetBeep() {
-    // 2x krótki beep potwierdzający reset
-    for (int i = 0; i < 2; i++) {
-        _setBuzzer(true);
-        delay(100);
-        _setBuzzer(false);
-        delay(100);
-    }
 }
 
 // ============================================================================

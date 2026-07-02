@@ -41,22 +41,16 @@ private:
     bool _masterRelayEnabled = false;
     CriticalErrorState _currentError;
 
-    unsigned long _buzzerLastToggle = 0;
-    bool _buzzerState = false;
-
     unsigned long _buttonPressStart = 0;
     bool _buttonWasPressed = false;
     bool _resetInProgress = false;
 
     void _setMasterRelay(bool enabled);
-    void _setBuzzer(bool on);
-    void _updateBuzzerPattern();
     void _handleResetButton();
     void _takePumpSnapshot();
     void _saveErrorToFRAM();
     void _loadErrorFromFRAM();
     void _clearErrorInFRAM();
-    void _confirmResetBeep();
 };
 
 extern SafetyManager safetyManager;
