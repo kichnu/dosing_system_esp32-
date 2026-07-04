@@ -1,5 +1,7 @@
 # VPS Proxy Session Expiry - Security Fix
 
+> Status: strona ESP32 (`secureFetch`/`sessionExpiredModal`) już zaimplementowana w `src/web/html_pages.cpp`. Fragmenty nginx/Flask poniżej to referencja dla konfiguracji VPS gateway (poza tym repo).
+
 ## Problem
 
 When ESP32 dashboard is displayed through VPS reverse proxy (Nginx), JavaScript polling continues even after VPS session expires. This causes:
