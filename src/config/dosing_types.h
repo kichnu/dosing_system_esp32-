@@ -174,8 +174,9 @@ struct SystemState {
     uint8_t  pending_changes_mask;
     uint8_t  _reserved[3];
     uint32_t last_event_timestamp;
+    uint32_t last_auto_restart_day;  // dzień (rok*366+miesiąc*31+dzień) ostatniego 24H AUTO-RESTART
     uint32_t crc32;
-    uint8_t  _padding[8];
+    uint8_t  _padding[4];
 };
 
 #pragma pack(pop)
