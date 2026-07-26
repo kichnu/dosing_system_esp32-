@@ -1,7 +1,7 @@
 /**
  * DOZOWNIK - Pump Controller Implementation
  *
- * ULN2003AN: Active HIGH — HIGH = pompa ON, LOW = pompa OFF.
+ * Przekaźniki: Active LOW — LOW = pompa ON, HIGH = pompa OFF.
  * Mutex gwarantuje że tylko jedna pompa pracuje jednocześnie.
  */
 
@@ -17,11 +17,11 @@ static portMUX_TYPE _pumpMutex = portMUX_INITIALIZER_UNLOCKED;
 // ============================================================================
 
 void RelayController::begin() {
-    Serial.println(F("[PUMP] Initializing pump controller (ULN2003AN)..."));
+    Serial.println(F("[PUMP] Initializing pump controller (przekaźniki, Active LOW)..."));
 
     for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
         pinMode(PUMPS_PINS[i], OUTPUT);
-        digitalWrite(PUMPS_PINS[i], LOW);  // OFF (active HIGH — LOW = off)
+        digitalWrite(PUMPS_PINS[i], HIGH);  // OFF (active LOW — HIGH = off)
 
         _channels[i].is_on = false;
         _channels[i].on_since_ms = 0;
@@ -200,8 +200,8 @@ void RelayController::emergencyStop() {
 
 void RelayController::_setPump(uint8_t channel, bool state) {
     if (channel >= CHANNEL_COUNT) return;
-    // ULN2003AN: HIGH = pompa ON, LOW = pompa OFF
-    digitalWrite(PUMPS_PINS[channel], state ? HIGH : LOW);
+    // Przekaźniki: LOW = pompa ON, HIGH = pompa OFF (active LOW)
+    digitalWrite(PUMPS_PINS[channel], state ? LOW : HIGH);
 }
 
 // ============================================================================

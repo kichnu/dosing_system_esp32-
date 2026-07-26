@@ -13,18 +13,18 @@
 //
 //                                                      ┌───────────────────   ──┐
 //                                                      │       USB-C            │
-//                                  PUMP_7  GPIO 11 ────┤  ULN2003AN             ├──── VBUS (5V)
-//                                  PUMP_3  GPIO 12 ────┤  ULN2003AN             ├──── VSYS (5V)
+//                                  PUMP_7  GPIO 11 ────┤  RELAY (LOW=ON)        ├──── VBUS (5V)
+//                                  PUMP_3  GPIO 12 ────┤  RELAY (LOW=ON)        ├──── VSYS (5V)
 //                                            GND   ────┤                        ├──── GND
-//                                 PUMP_4   GPIO 13 ────┤  ULN2003AN             ├──── EN   (3V3_EN)
-//                                 PUMP_5   GPIO 14 ────┤  ULN2003AN             ├──── 3V3  (OUT)
-//                                 PUMP_6   GPIO 15 ────┤  ULN2003AN             ├──── GPIO 10  FREE
-//                                 PUMP_0   GPIO 16 ────┤  ULN2003AN             ├──── GPIO  9  FREE
+//                                 PUMP_4   GPIO 13 ────┤  RELAY (LOW=ON)        ├──── EN   (3V3_EN)
+//                                 PUMP_5   GPIO 14 ────┤  RELAY (LOW=ON)        ├──── 3V3  (OUT)
+//                                 PUMP_6   GPIO 15 ────┤  RELAY (LOW=ON)        ├──── GPIO 10  FREE
+//                                 PUMP_0   GPIO 16 ────┤  RELAY (LOW=ON)        ├──── GPIO  9  FREE
 //                                            GND   ────┤                        ├──── GND
-//                                 PUMP_1   GPIO 17 ────┤  ULN2003AN             ├──── GPIO  8  [RGB LED!]
-//                                 PUMP_2   GPIO 18 ────┤  ULN2003AN             ├──── GPIO  7  I2C_SCL
+//                                 PUMP_1   GPIO 17 ────┤  RELAY (LOW=ON)        ├──── GPIO  8  [RGB LED!]
+//                                 PUMP_2   GPIO 18 ────┤  RELAY (LOW=ON)        ├──── GPIO  7  I2C_SCL
 //                                          GPIO 33 ────┤    ⚠️PSRAM             ├──── RUN  (hw reset)
-//                                          GPIO 34 ────┤  ULN2003AN  ⚠️PSRAM    ├──── GPIO  6  I2C_SDA
+//                                          GPIO 34 ────┤  RELAY (LOW=ON) ⚠️PSRAM├──── GPIO  6  I2C_SDA
 //                                            GND   ────┤                        ├──── GND
 //                                          GPIO 35 ────┤  UART2 ⚠️PSRAM         ├──── GPIO  5  BUZZER
 //                                          GPIO 36 ────┤  UART2 ⚠️PSRAM         ├──── GPIO  4  RESET_BUTTON
@@ -94,7 +94,7 @@
 #define CHANNEL_COUNT       8
 
 // ============================================================================
-// GPIO PINOUT - PUMP OUTPUTS (ULN2003AN — Active HIGH)
+// GPIO PINOUT - PUMP OUTPUTS (Przekaźniki — Active LOW)
 // ============================================================================
 #define PUMP_PIN_CH0       16
 #define PUMP_PIN_CH1       17

@@ -13,9 +13,37 @@ pio run -e production -t upload
 pio device monitor -b 115200
 ```
 
+### OTA (upload przez WiFi)
+
+Wymaga wcześniejszego uploadu przez USB firmware zawierającego `ArduinoOTA.begin()`
+(bez tego OTA nie istnieje na urządzeniu). `OTA_PASSWORD` musi być w TEJ SAMEJ
+komendzie shella co `pio run` — export w osobnym kroku nie przetrwa do procesu
+`pio` (objaw: `Authentication Failed`).
+
+```bash
+# Pierwszy upload — zawsze przez USB, wypala hasło w build_flags
+OTA_PASSWORD='...' pio run -e production -t upload
+
+# Kolejne update'y — przez WiFi (urządzenie musi być w tej samej sieci)
+OTA_PASSWORD='...' pio run -e production_ota -t upload
+OTA_PASSWORD='...' pio run -e debug_ota -t upload
+
+# Jeśli mDNS (dozownik.local) nie działa (np. VLAN/izolacja IoT) —
+# nadpisz --upload-port adresem IP
+OTA_PASSWORD='...' pio run -e production_ota -t upload --upload-port 192.168.1.x
+```
+
+Zmiana tabeli partycji (`board_build.partitions`) wymaga zawsze pełnego reflashu
+przez USB — nie przechodzi przez OTA. Szczegóły wzorca i pułapek (partycje,
+firewall/VLAN, diagnoza crasha) → `docs/OTA_WIFI_UPLOAD_PATTERN.md`.
+
 ## Status
 
-Trwa przebudowa v4.0 (ULN2003AN, 8 kanałów, przygotowanie pod monitoring pomp Edge Impulse) — patrz `docs/sessions/` i historia commitów.
+Trwa przebudowa v4.0 (przekaźniki — Active LOW, 8 kanałów, przygotowanie pod monitoring pomp Edge Impulse) — patrz `docs/sessions/` i historia commitów.
+
+### Sterowanie pompami — przekaźniki (Active LOW)
+
+Firmware steruje `PUMPS_PINS` w trybie Active LOW (LOW = pompa ON, HIGH = OFF) — przygotowanie pod zamianę driverów ULN2003AN na przekaźniki (kandydat: `docs/G3VM-61G1_NOTES_1.0.md`). Zmiana logiki jest gotowa w kodzie, ale implementacja elektryczna (fizyczna wymiana układu na płytce) jeszcze nie została wykonana.
 
 ## Dokumentacja (docs/)
 

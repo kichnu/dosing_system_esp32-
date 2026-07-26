@@ -3,13 +3,14 @@
 #define PROV_CONFIG_H
 
 #include <Arduino.h>
+#include "../config/config.h"
 
 // ===============================
 // PROVISIONING MODE CONFIGURATION
 // ===============================
 
 // Button Configuration - DOZOWNIK
-#define PROV_BUTTON_PIN         40      // GPIO40 zwierany do masy
+#define PROV_BUTTON_PIN         RESET_BUTTON_PIN  // wspólny pin z reset-em błędu krytycznego, zwierany do masy
 #define PROV_BUTTON_HOLD_MS     5000    // Hold time to enter provisioning (5 seconds)
 #define PROV_BUTTON_DEBOUNCE_MS 100     // Debounce time
 

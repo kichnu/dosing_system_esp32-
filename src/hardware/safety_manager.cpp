@@ -207,10 +207,10 @@ void SafetyManager::_handleResetButton() {
 }
 
 void SafetyManager::_takePumpSnapshot() {
-    // Snapshot stanu wyjść pompy (ULN2003AN — HIGH = ON)
+    // Snapshot stanu wyjść pompy (przekaźniki — LOW = ON)
     uint8_t pumpSnapshot = 0;
     for (int i = 0; i < CHANNEL_COUNT; i++) {
-        if (digitalRead(PUMPS_PINS[i]) == HIGH) {
+        if (digitalRead(PUMPS_PINS[i]) == LOW) {
             pumpSnapshot |= (1 << i);
         }
     }

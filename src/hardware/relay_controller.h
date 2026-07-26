@@ -1,7 +1,7 @@
 /**
  * DOZOWNIK - Pump Controller
  *
- * Bezpieczne sterowanie pompami perystaltycznymi przez ULN2003AN (Active HIGH).
+ * Bezpieczne sterowanie pompami perystaltycznymi przez przekaźniki (Active LOW).
  * Gwarantuje że tylko jedna pompa pracuje w danym momencie (mutex).
  */
 

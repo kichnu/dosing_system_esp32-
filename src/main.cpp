@@ -16,6 +16,7 @@
 
 #include "web_server.h"
 #include <WiFi.h>
+#include <ArduinoOTA.h>
 #include <esp_task_wdt.h>
 
 #include "provisioning/prov_detector.h"
@@ -97,8 +98,8 @@ void initHardware() {
         Serial.println(F("FAILED!"));
     }
     
-    // --- Pump Controller (ULN2003AN) ---
-    Serial.print(F("[INIT] Pumps (ULN2003AN)... "));
+    // --- Pump Controller (przekaźniki, Active LOW) ---
+    Serial.print(F("[INIT] Pumps (przekaźniki)... "));
     relayController.begin();
     initStatus.pumps_ok = true;
     Serial.println(F("OK"));
@@ -182,6 +183,32 @@ void initNetwork() {
         Serial.println(F("[INIT] WebServer: SKIPPED (no WiFi)"));
     }
     
+    // --- OTA (WiFi upload, tylko jeśli WiFi OK) ---
+    if (initStatus.wifi_ok) {
+        Serial.print(F("[INIT] OTA... "));
+        ArduinoOTA.setHostname("dozownik");
+        ArduinoOTA.setPassword(OTA_PASSWORD);
+
+        static bool haltedBeforeOTA = false;
+        ArduinoOTA.onStart([]() {
+            // KRYTYCZNE: wyłączyć pompy PRZED erase flash - erase blokuje CPU
+            // na dłużej niż jeden tick, pompa zostawiona ON zostałaby ON przez
+            // cały czas trwania OTA.
+            haltedBeforeOTA = systemHalted;
+            relayController.allOff();
+            systemHalted = true;
+        });
+        ArduinoOTA.onError([](ota_error_t error) {
+            // OTA mogło się nie udać z przyczyn niezwiązanych z bezpieczeństwem
+            // (zła sieć, zły hash) - wtedy urządzenie nie restartuje się samo,
+            // więc trzeba ręcznie przywrócić stan sprzed OTA. Jeśli halt był
+            // aktywny już wcześniej (błąd krytyczny), nie wolno go zdjąć.
+            systemHalted = haltedBeforeOTA;
+        });
+        ArduinoOTA.begin();
+        Serial.println(F("OK (dozownik.local)"));
+    }
+
     // --- Network summary ---
     if (initStatus.wifi_ok && initStatus.webserver_ok) {
         Serial.println(F("[INIT] Network: ALL OK"));
@@ -429,6 +456,9 @@ if (framController.writeContainerVolume(0, &testVol)) {
 // ============================================================================
 
 void loop() {
+    // === OTA: obsługiwać w KAŻDEJ iteracji, przed jakimkolwiek early return ===
+    ArduinoOTA.handle();
+
     // === CRITICAL: Always update relay (safety) ===
     safetyManager.update();
     relayController.update();

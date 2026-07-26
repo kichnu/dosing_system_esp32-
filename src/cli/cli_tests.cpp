@@ -523,7 +523,7 @@ void measureGpioTiming(uint8_t channel) {
     Serial.printf("\n[MEASURE] === Pump Timing Test CH%d ===\n", channel);
     Serial.printf("[MEASURE] Pump pin: GPIO%d\n", PUMPS_PINS[channel]);
     Serial.printf("[MEASURE] Initial pump state: %s\n",
-                  digitalRead(PUMPS_PINS[channel]) ? "HIGH(ON)" : "LOW(OFF)");
+                  digitalRead(PUMPS_PINS[channel]) ? "HIGH(OFF)" : "LOW(ON)");
 
     if (relayController.isAnyOn()) {
         Serial.println(F("[MEASURE] ERROR: Another pump running!"));
@@ -548,7 +548,7 @@ void measureGpioTiming(uint8_t channel) {
     uint32_t duration = (micros() - startTime) / 1000;
     Serial.printf("[MEASURE] Done. Total time: %lu ms\n", duration);
     Serial.printf("[MEASURE] Final pump state: %s\n",
-                  digitalRead(PUMPS_PINS[channel]) ? "HIGH(ON!)" : "LOW(OFF)");
+                  digitalRead(PUMPS_PINS[channel]) ? "HIGH(OFF)" : "LOW(ON!)");
     Serial.println();
 }
 

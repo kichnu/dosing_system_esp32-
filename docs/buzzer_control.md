@@ -15,8 +15,12 @@ wewnątrz głównej pętli (`loop()`) co ~100ms. Powodowało to:
 ## Rozwiązanie: dedykowany FreeRTOS task
 
 ```
-xTaskCreate(buzzerTask, "buzzer", 1024, nullptr, 1, nullptr);
+xTaskCreate(buzzerTask, "buzzer", 2048, nullptr, 1, nullptr);
 ```
+
+Uwaga (2026-07-13): pierwotnie 1024 B. Za mało pod obciążeniem WiFi/TCP —
+patrz `docs/SESSION_MANAGER_GPIO1_NOTES.md` pkt 1 (crash znaleziony i
+naprawiony w THERMO CONTROL, przeniesiony tutaj profilaktycznie).
 
 Task budzony jest co `BUZZER_TICK_MS` (50ms) przez `vTaskDelayUntil()`.
 Czas wznowienia jest korygowany o czas wykonania, więc drift nie
@@ -61,3 +65,20 @@ Uwaga: jeśli `buzzerOK()` / `buzzerCritical()` będą wywoływane po
 starcie pętli (np. w handlerach web), należy dodać mutex lub
 tymczasowo ustawić `g_mode = BUZZER_OFF` i wyłączyć task na czas
 sygnału.
+
+## TODO: cykliczne piknięcie w trybie provisioning
+
+W projekcie DOLEWKA jest to już zaimplementowane — w tym projekcie
+(DOZOWNIK) jeszcze nie. Stan na 2026-07-02:
+
+- `BuzzerMode::WARNING` (1 tik co 12s) jest zdefiniowany w
+  `buzzer_controller.h` i gotowy do użycia, ale nikt go nie ustawia.
+- `runProvisioningLoop()` (`src/provisioning/ap_core.cpp:93-121`) nie
+  wywołuje `setBuzzerMode()` — pętla tylko obsługuje DNS i loguje
+  status co 30s, buzzer milczy przez cały czas oczekiwania na
+  konfigurację.
+- Brakujący call: `setBuzzerMode(BuzzerMode::WARNING);` na wejściu do
+  `runProvisioningLoop()` (analogicznie do wzorca z DOLEWKI).
+- `buzzerCritical()` też nie jest nigdzie wywoływany przy błędzie
+  FRAM/AP init w ścieżce provisioning w `main.cpp` — tylko definicja
+  istnieje.

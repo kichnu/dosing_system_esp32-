@@ -30,7 +30,7 @@ static void buzzerTask(void*) {
 void initBuzzer() {
     pinMode(BUZZER_PIN, OUTPUT);
     digitalWrite(BUZZER_PIN, BUZZER_INACTIVE);
-    xTaskCreate(buzzerTask, "buzzer", 1024, nullptr, 1, &s_taskHandle);
+    xTaskCreate(buzzerTask, "buzzer", 2048, nullptr, 1, &s_taskHandle);
 }
 
 void setBuzzerMode(BuzzerMode mode) {
