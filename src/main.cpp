@@ -205,6 +205,18 @@ void initNetwork() {
             // aktywny już wcześniej (błąd krytyczny), nie wolno go zdjąć.
             systemHalted = haltedBeforeOTA;
         });
+        ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+            // KRYTYCZNE: ArduinoOTA.handle() blokuje loop() na czas CAŁEGO
+            // transferu (wewnętrzna pętla w bibliotece) - esp_task_wdt_reset()
+            // z loop() się nie wykonuje. Domyślny Task Watchdog (5s,
+            // CONFIG_ESP_TASK_WDT_PANIC=1) resetuje wtedy urządzenie w środku
+            // OTA, jeśli transfer trwa dłużej niż 5s. onProgress() woła się
+            // w tej samej (blokującej) pętli po każdym zapisanym fragmencie -
+            // to bezpieczne miejsce, żeby nakarmić watchdoga.
+            #if !ENABLE_CLI
+            esp_task_wdt_reset();
+            #endif
+        });
         ArduinoOTA.begin();
         Serial.println(F("OK (dozownik.local)"));
     }
