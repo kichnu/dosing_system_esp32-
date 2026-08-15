@@ -85,7 +85,7 @@ void handleRoot(AsyncWebServerRequest* request) {
     }
 
     IPAddress clientIP = resolveClientIP(request);
-    Serial.printf("[WEB] ROOT request from: %s\n", clientIP.toString().c_str());
+    LOG_INFO("[WEB] ROOT request from: %s", clientIP.toString().c_str());
     if (!isAuthenticated(request)) {
         request->redirect("login");
         return;
@@ -153,11 +153,11 @@ void handleApiLogin(AsyncWebServerRequest* request) {
         response->addHeader("Set-Cookie", "session_token=" + token + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=1800");
         request->send(response);
 
-        Serial.printf("[WEB] Login OK from %s\n", clientIP.toString().c_str());
+        LOG_INFO("[WEB] Login OK from %s", clientIP.toString().c_str());
     } else {
         recordFailedLogin(clientIP);
         request->send(401, "application/json", "{\"success\":false,\"error\":\"Invalid password\"}");
-        Serial.printf("[WEB] Login FAILED from %s\n", clientIP.toString().c_str());
+        LOG_INFO("[WEB] Login FAILED from %s", clientIP.toString().c_str());
     }
 }
 
@@ -210,7 +210,7 @@ void handleApiLogout(AsyncWebServerRequest* request) {
     response->addHeader("Set-Cookie", "session_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");
     request->send(response);
     
-    Serial.println(F("[WEB] Logout"));
+    LOG_INFO("[WEB] Logout");
 }
 
 // ============================================================================
@@ -375,7 +375,7 @@ void handleApiDosingConfig(AsyncWebServerRequest* request, uint8_t* data, size_t
     bodyBuffer = "";
     
     if (err) {
-        Serial.printf("[WEB] JSON parse error: %s\n", err.c_str());
+        LOG_INFO("[WEB] JSON parse error: %s", err.c_str());
         request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
         return;
     }
@@ -393,7 +393,7 @@ void handleApiDosingConfig(AsyncWebServerRequest* request, uint8_t* data, size_t
         return;
     }
     
-    Serial.printf("[WEB] Config update CH%d\n", channel);
+    LOG_INFO("[WEB] Config update CH%d", channel);
 
     // === Input validation before applying ===
     // Events bitmask: tylko parzyste godziny 2,4,...,22 (maska 0x00555554)
@@ -489,7 +489,7 @@ void handleApiDosingConfig(AsyncWebServerRequest* request, uint8_t* data, size_t
     bool valid = channelManager.validateConfig(channel, &valErr);
     
     if (!valid) {
-        Serial.printf("[WEB] Validation: %s\n", valErr.message);
+        LOG_INFO("[WEB] Validation: %s", valErr.message);
     }
     
     // Build response
@@ -506,7 +506,7 @@ void handleApiDosingConfig(AsyncWebServerRequest* request, uint8_t* data, size_t
     serializeJson(resp, response);
     request->send(200, "application/json", response);
     
-    Serial.printf("[WEB] Config saved: success=%d valid=%d pending=%d\n", 
+    LOG_INFO("[WEB] Config saved: success=%d valid=%d pending=%d",
                   success, valid, channelManager.hasPendingChanges(channel));
 }
 
@@ -533,7 +533,7 @@ void handleApiCalibrate(AsyncWebServerRequest* request) {
         return;
     }
     
-    Serial.printf("[WEB] Calibration request CH%d\n", channel);
+    LOG_INFO("[WEB] Calibration request CH%d", channel);
     
     // Check if any pump already running
     if (relayController.isAnyOn()) {
@@ -554,7 +554,7 @@ void handleApiCalibrate(AsyncWebServerRequest* request) {
         return;
     }
     
-    Serial.printf("[WEB] Calibration started CH%d for %lu ms\n", channel, CALIB_DURATION_MS);
+    LOG_INFO("[WEB] Calibration started CH%d for %lu ms", channel, CALIB_DURATION_MS);
     
     // Success response
     JsonDocument resp;
@@ -607,7 +607,7 @@ void handleApiPumpStart(AsyncWebServerRequest* request) {
         return;
     }
 
-    Serial.printf("[WEB] Pump hold START CH%d\n", channel);
+    LOG_INFO("[WEB] Pump hold START CH%d", channel);
     request->send(200, "application/json", "{\"success\":true}");
 }
 
@@ -635,7 +635,7 @@ void handleApiPumpStop(AsyncWebServerRequest* request) {
     // (e.g. mouseup + mouseleave) or after the backstop already fired.
     bool success = (res == RelayResult::OK || res == RelayResult::ERROR_ALREADY_OFF);
 
-    Serial.printf("[WEB] Pump hold STOP CH%d: %s\n", channel, success ? "OK" : "FAILED");
+    LOG_INFO("[WEB] Pump hold STOP CH%d: %s", channel, success ? "OK" : "FAILED");
 
     if (!success) {
         String errJson = "{\"success\":false,\"error\":\"";
@@ -677,7 +677,7 @@ void handleApiScheduler(AsyncWebServerRequest* request) {
     
     dosingScheduler.setEnabled(enabled);
     
-    Serial.printf("[WEB] Scheduler %s\n", enabled ? "ENABLED" : "DISABLED");
+    LOG_INFO("[WEB] Scheduler %s", enabled ? "ENABLED" : "DISABLED");
     
     JsonDocument resp;
     resp["success"] = true;
@@ -712,7 +712,7 @@ void handleApiManualDose(AsyncWebServerRequest* request) {
         return;
     }
     
-    Serial.printf("[WEB] Manual dose request CH%d\n", channel);
+    LOG_INFO("[WEB] Manual dose request CH%d", channel);
     
     // Check scheduler
     if (!dosingScheduler.isEnabled()) {
@@ -744,7 +744,7 @@ void handleApiManualDose(AsyncWebServerRequest* request) {
     serializeJson(resp, response);
     request->send(200, "application/json", response);
     
-    Serial.printf("[WEB] Manual dose started CH%d: %.2f ml\n", channel, calc.single_dose_ml);
+    LOG_INFO("[WEB] Manual dose started CH%d: %.2f ml", channel, calc.single_dose_ml);
 }
 
 // ============================================================================
@@ -757,7 +757,7 @@ void handleApiDailyReset(AsyncWebServerRequest* request) {
         return;
     }
     
-    Serial.println(F("[WEB] Forcing daily reset..."));
+    LOG_INFO("[WEB] Forcing daily reset...");
     
     bool success = dosingScheduler.forceDailyReset();
     
@@ -770,7 +770,7 @@ void handleApiDailyReset(AsyncWebServerRequest* request) {
     serializeJson(resp, response);
     request->send(200, "application/json", response);
     
-    Serial.printf("[WEB] Daily reset: %s\n", success ? "OK" : "FAILED");
+    LOG_INFO("[WEB] Daily reset: %s", success ? "OK" : "FAILED");
 }
 
 // ============================================================================
@@ -870,7 +870,7 @@ void handleApiContainerVolumeSet(AsyncWebServerRequest* request, uint8_t* data, 
         return;
     }
     
-    Serial.printf("[WEB] Setting container CH%d to %.1f ml\n", channel, container_ml);
+    LOG_INFO("[WEB] Setting container CH%d to %.1f ml", channel, container_ml);
     
     bool success = channelManager.setContainerCapacity(channel, container_ml);
     
@@ -912,7 +912,7 @@ void handleApiRefill(AsyncWebServerRequest* request) {
         return;
     }
     
-    Serial.printf("[WEB] Refill request CH%d\n", channel);
+    LOG_INFO("[WEB] Refill request CH%d", channel);
     
     bool success = channelManager.refillContainer(channel);
     
@@ -932,7 +932,7 @@ void handleApiRefill(AsyncWebServerRequest* request) {
     serializeJson(resp, response);
     request->send(200, "application/json", response);
     
-    Serial.printf("[WEB] Refill CH%d: %s (%.1f ml)\n",
+    LOG_INFO("[WEB] Refill CH%d: %s (%.1f ml)",
                   channel, success ? "OK" : "FAILED", vol.getRemainingMl());
 }
 
@@ -958,7 +958,7 @@ void handleApiResetDosed(AsyncWebServerRequest* request) {
         return;
     }
 
-    Serial.printf("[WEB] Reset dosed tracker request CH%d\n", channel);
+    LOG_INFO("[WEB] Reset dosed tracker request CH%d", channel);
 
     bool success = channelManager.resetDosedTracker(channel);
 
@@ -972,7 +972,7 @@ void handleApiResetDosed(AsyncWebServerRequest* request) {
     serializeJson(resp, response);
     request->send(200, "application/json", response);
 
-    Serial.printf("[WEB] Reset dosed CH%d: %s\n", channel, success ? "OK" : "FAILED");
+    LOG_INFO("[WEB] Reset dosed CH%d: %s", channel, success ? "OK" : "FAILED");
 }
 
 // ============================================================================
@@ -998,7 +998,7 @@ void handleApiApplyPending(AsyncWebServerRequest* request) {
         return;
     }
 
-    Serial.printf("[WEB] Apply pending request CH%d\n", channel);
+    LOG_INFO("[WEB] Apply pending request CH%d", channel);
 
     bool applyOk = channelManager.applyPendingChanges(channel);
     bool resetOk = channelManager.resetDailyState(channel);
@@ -1027,7 +1027,7 @@ void handleApiApplyPending(AsyncWebServerRequest* request) {
     serializeJson(resp, response);
     request->send(200, "application/json", response);
 
-    Serial.printf("[WEB] Apply pending CH%d: %s\n", channel, success ? "OK" : "FAILED");
+    LOG_INFO("[WEB] Apply pending CH%d: %s", channel, success ? "OK" : "FAILED");
 }
 
 void handleHealth(AsyncWebServerRequest* request) {
@@ -1317,8 +1317,8 @@ void initWebServer() {
     server.begin();
     serverRunning = true;
     
-    Serial.println(F("[WEB] Server started on port 80"));
-    Serial.printf("[WEB] Dashboard: http://%s/\n", WiFi.localIP().toString().c_str());
+    LOG_INFO("[WEB] Server started on port 80");
+    LOG_INFO("[WEB] Dashboard: http://%s/", WiFi.localIP().toString().c_str());
 }
 
 bool isWebServerRunning() {

@@ -9,6 +9,17 @@ void logInfo(const char* format, ...);
 void logWarning(const char* format, ...);
 void logError(const char* format, ...);
 
+// Log-socket — dubluje logi do podłączonego klienta TCP (port 8880), żeby
+// można było `pio device monitor --port socket://<ip>:8880` bez USB.
+// startLogServer() wołaj raz po połączeniu WiFi; updateLogServer() okresowo
+// w loop() (przyjmuje nowe połączenia klienta). stopLogServer() wołaj przed
+// OTA — nasz nasłuchujący socket konkuruje o pulę gniazd LWIP z połączeniem
+// TCP, które ArduinoOTA otwiera do hosta podczas transferu (patrz onStart
+// w main.cpp, timeout OTA przy współistniejącym log-socketem).
+void startLogServer();
+void updateLogServer();
+void stopLogServer();
+
 // Warunkowe makra logowania - sprawdzają flagę konfiguracyjną
 #if ENABLE_FULL_LOGGING
     #define LOG_INFO(format, ...) logInfo("[INFO] " format, ##__VA_ARGS__)

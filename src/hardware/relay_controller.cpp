@@ -7,6 +7,7 @@
 
 #include "relay_controller.h"
 #include "safety_manager.h"
+#include "../core/logging.h"
 
 RelayController relayController;
 
@@ -17,7 +18,7 @@ static portMUX_TYPE _pumpMutex = portMUX_INITIALIZER_UNLOCKED;
 // ============================================================================
 
 void RelayController::begin() {
-    Serial.println(F("[PUMP] Initializing pump controller (przekaźniki, Active LOW)..."));
+    LOG_INFO("[PUMP] Initializing pump controller (przekaźniki, Active LOW)...");
 
     for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
         pinMode(PUMPS_PINS[i], OUTPUT);
@@ -36,7 +37,7 @@ void RelayController::begin() {
     _pumpStartTime    = 0;
     _initialized      = true;
 
-    Serial.println(F("[PUMP] Controller ready"));
+    LOG_INFO("[PUMP] Controller ready");
 }
 
 // ============================================================================
@@ -54,7 +55,7 @@ void RelayController::_checkTimeout() {
     if (_activeMaxDuration == 0) return;
     uint32_t runtime = millis() - _pumpStartTime;
     if (runtime >= _activeMaxDuration) {
-        Serial.printf("[PUMP] CH%d TIMEOUT after %lu ms\n", _activeChannel, runtime);
+        LOG_INFO("[PUMP] CH%d TIMEOUT after %lu ms", _activeChannel, runtime);
         turnOff(_activeChannel);
     }
 }
@@ -65,17 +66,17 @@ void RelayController::_checkTimeout() {
 
 RelayResult RelayController::turnOn(uint8_t channel, uint32_t max_duration_ms) {
     if (channel >= CHANNEL_COUNT) {
-        Serial.printf("[PUMP] ERROR: Invalid channel %d\n", channel);
+        LOG_INFO("[PUMP] ERROR: Invalid channel %d", channel);
         return RelayResult::ERROR_INVALID_CHANNEL;
     }
 
     if (systemHalted) {
-        Serial.println(F("[PUMP] ERROR: System halted"));
+        LOG_INFO("[PUMP] ERROR: System halted");
         return RelayResult::ERROR_SYSTEM_HALTED;
     }
 
     if (safetyManager.isCriticalErrorActive()) {
-        Serial.println(F("[PUMP] ERROR: Critical error active"));
+        LOG_INFO("[PUMP] ERROR: Critical error active");
         return RelayResult::ERROR_SYSTEM_HALTED;
     }
 
@@ -83,7 +84,7 @@ RelayResult RelayController::turnOn(uint8_t channel, uint32_t max_duration_ms) {
 
     if (_activeChannel < CHANNEL_COUNT && _activeChannel != channel) {
         portEXIT_CRITICAL(&_pumpMutex);
-        Serial.printf("[PUMP] ERROR: CH%d blocked, CH%d active\n", channel, _activeChannel);
+        LOG_INFO("[PUMP] ERROR: CH%d blocked, CH%d active", channel, _activeChannel);
         return RelayResult::ERROR_MUTEX_LOCKED;
     }
 
@@ -103,7 +104,7 @@ RelayResult RelayController::turnOn(uint8_t channel, uint32_t max_duration_ms) {
     _channels[channel].activation_count++;
     _pumpStartTime = millis();
 
-    Serial.printf("[PUMP] CH%d ON (max %lu ms)\n", channel, _activeMaxDuration);
+    LOG_INFO("[PUMP] CH%d ON (max %lu ms)", channel, _activeMaxDuration);
     return RelayResult::OK;
 }
 
@@ -140,7 +141,7 @@ RelayResult RelayController::turnOffWithDuration(uint8_t channel, uint32_t* actu
     _pumpStartTime     = 0;
     portEXIT_CRITICAL(&_pumpMutex);
 
-    Serial.printf("[PUMP] CH%d OFF (ran %lu ms)\n", channel, duration);
+    LOG_INFO("[PUMP] CH%d OFF (ran %lu ms)", channel, duration);
     return RelayResult::OK;
 }
 
@@ -151,7 +152,7 @@ RelayResult RelayController::turnOffWithDuration(uint8_t channel, uint32_t* actu
 void RelayController::forceOffImmediate(uint8_t channel) {
     if (channel >= CHANNEL_COUNT) return;
 
-    Serial.printf("[PUMP] CH%d FORCE OFF\n", channel);
+    LOG_INFO("[PUMP] CH%d FORCE OFF", channel);
     _setPump(channel, false);
 
     portENTER_CRITICAL(&_pumpMutex);
@@ -173,7 +174,7 @@ void RelayController::forceOffImmediate(uint8_t channel) {
 // ============================================================================
 
 void RelayController::allOff() {
-    Serial.println(F("[PUMP] ALL OFF"));
+    LOG_INFO("[PUMP] ALL OFF");
     for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
         _setPump(i, false);
         if (_channels[i].is_on) {
@@ -189,7 +190,7 @@ void RelayController::allOff() {
 }
 
 void RelayController::emergencyStop() {
-    Serial.println(F("[PUMP] !!! EMERGENCY STOP !!!"));
+    LOG_INFO("[PUMP] !!! EMERGENCY STOP !!!");
     allOff();
     systemHalted = true;
 }

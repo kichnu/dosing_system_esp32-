@@ -7,6 +7,7 @@
  */
 
 #include "dosing_scheduler.h"
+#include "../core/logging.h"
 
 DosingScheduler dosingScheduler;
 
@@ -17,7 +18,7 @@ static portMUX_TYPE _schedulerMux = portMUX_INITIALIZER_UNLOCKED;
 // ============================================================================
 
 bool DosingScheduler::begin() {
-    Serial.println(F("[SCHED] Initializing..."));
+    LOG_INFO("[SCHED] Initializing...");
 
     _state = SchedulerState::SCHED_DISABLED;
     memset(&_currentEvent, 0, sizeof(_currentEvent));
@@ -33,11 +34,11 @@ bool DosingScheduler::begin() {
         _enabled = (sysState.system_enabled != 0);
         sysState.boot_count++;
         framController.writeSystemState(&sysState);
-        Serial.printf("[SCHED] State from FRAM: %s, boot#%lu\n",
+        LOG_INFO("[SCHED] State from FRAM: %s, boot#%lu",
                       _enabled ? "ENABLED" : "DISABLED", sysState.boot_count);
     } else {
         _enabled = true;
-        Serial.println(F("[SCHED] FRAM load failed, defaulting to ENABLED"));
+        LOG_INFO("[SCHED] FRAM load failed, defaulting to ENABLED");
     }
 
     if (rtcController.isReady() && rtcController.isTimeValid()) {
@@ -47,7 +48,7 @@ bool DosingScheduler::begin() {
         uint32_t currentUtcDay = (uint32_t)now.year * 366 + (uint32_t)now.month * 31 + now.day;
         if (framController.readSystemState(&sysState)) {
             if (sysState.last_daily_reset_day != currentUtcDay) {
-                Serial.println(F("[SCHED] New day at startup — performing daily reset"));
+                LOG_INFO("[SCHED] New day at startup — performing daily reset");
                 _performDailyReset();
                 sysState.last_daily_reset_day = currentUtcDay;
                 framController.writeSystemState(&sysState);
@@ -57,7 +58,7 @@ bool DosingScheduler::begin() {
 
     _state = _enabled ? SchedulerState::IDLE : SchedulerState::SCHED_DISABLED;
     _initialized = true;
-    Serial.printf("[SCHED] Ready (%s)\n", _enabled ? "ENABLED" : "DISABLED");
+    LOG_INFO("[SCHED] Ready (%s)", _enabled ? "ENABLED" : "DISABLED");
     return true;
 }
 
@@ -134,12 +135,12 @@ void DosingScheduler::setEnabled(bool enabled) {
             TimeInfo now = rtcController.getTime();
             _lastDay = now.day;
         }
-        Serial.println(F("[SCHED] Enabled"));
+        LOG_INFO("[SCHED] Enabled");
     } else {
         if (_state == SchedulerState::DOSING || _state == SchedulerState::WAITING_PUMP)
             stopCurrentDose();
         _state = SchedulerState::SCHED_DISABLED;
-        Serial.println(F("[SCHED] Disabled"));
+        LOG_INFO("[SCHED] Disabled");
     }
 }
 
@@ -162,7 +163,7 @@ bool DosingScheduler::_checkDailyReset() {
 
 bool DosingScheduler::_performDailyReset() {
     TimeInfo now = rtcController.getTime();
-    Serial.printf("[SCHED] === DAILY RESET at %02d:%02d UTC ===\n", now.hour, now.minute);
+    LOG_INFO("[SCHED] === DAILY RESET at %02d:%02d UTC ===", now.hour, now.minute);
 
     uint32_t currentUtcDay = (uint32_t)now.year * 366 + (uint32_t)now.month * 31 + now.day;
     SystemState sysState;
@@ -174,12 +175,12 @@ bool DosingScheduler::_performDailyReset() {
     _todayEventCount = 0;
 
     if (channelManager.hasAnyPendingChanges()) {
-        Serial.println(F("[SCHED] Applying pending configs..."));
+        LOG_INFO("[SCHED] Applying pending configs...");
         channelManager.applyAllPendingChanges();
     }
 
     if (isFirstResetToday) {
-        Serial.println(F("[SCHED] Resetting daily states..."));
+        LOG_INFO("[SCHED] Resetting daily states...");
         channelManager.resetDailyStates();
     }
 
@@ -188,12 +189,12 @@ bool DosingScheduler::_performDailyReset() {
         framController.writeSystemState(&sysState);
     }
 
-    Serial.println(F("[SCHED] Daily reset complete"));
+    LOG_INFO("[SCHED] Daily reset complete");
     return true;
 }
 
 bool DosingScheduler::forceDailyReset() {
-    Serial.println(F("[SCHED] Forced daily reset"));
+    LOG_INFO("[SCHED] Forced daily reset");
     channelManager.resetDailyStates();
     return _performDailyReset();
 }
@@ -228,7 +229,7 @@ void DosingScheduler::_checkSchedule() {
 
             // Bitmask sprawdzamy wg eventHour (godziny bazowej)
             if (channelManager.shouldExecuteEvent(ch, eventHour, now.dayOfWeek)) {
-                Serial.printf("[SCHED] Event: CH%d eventH=%02d actual=%02d:%02d now=%02d:%02d\n",
+                LOG_INFO("[SCHED] Event: CH%d eventH=%02d actual=%02d:%02d now=%02d:%02d",
                               ch, eventHour, actualHour, actualMinute,
                               now.hour, now.minute);
                 if (_startDosing(ch, eventHour)) return;
@@ -243,7 +244,7 @@ void DosingScheduler::syncTimeState() {
     uint8_t oldDay = _lastDay;
     _lastDay = now.day;
     if (oldDay != _lastDay)
-        Serial.printf("[SCHED] Time synced: day %d -> %d\n", oldDay, _lastDay);
+        LOG_INFO("[SCHED] Time synced: day %d -> %d", oldDay, _lastDay);
 }
 
 // ============================================================================
@@ -253,7 +254,7 @@ void DosingScheduler::syncTimeState() {
 bool DosingScheduler::_startDosing(uint8_t channel, uint8_t eventHour) {
     if (channel >= CHANNEL_COUNT) return false;
     if (relayController.isAnyOn()) {
-        Serial.println(F("[SCHED] Pump busy, skipping"));
+        LOG_INFO("[SCHED] Pump busy, skipping");
         return false;
     }
 
@@ -261,13 +262,13 @@ bool DosingScheduler::_startDosing(uint8_t channel, uint8_t eventHour) {
     const ChannelConfig& activeCfg = channelManager.getActiveConfig(channel);
     uint8_t eventCount = activeCfg.getActiveEventsCount();
     if (eventCount == 0 || activeCfg.daily_dose_ml <= 0 || activeCfg.dosing_rate <= 0) {
-        Serial.printf("[SCHED] CH%d active config not ready, skipping\n", channel);
+        LOG_INFO("[SCHED] CH%d active config not ready, skipping", channel);
         return false;
     }
     float singleDoseMl  = activeCfg.daily_dose_ml / (float)eventCount;
     uint32_t pumpDurMs  = (uint32_t)((singleDoseMl / activeCfg.dosing_rate) * 1000.0f);
     if (singleDoseMl < MIN_SINGLE_DOSE_ML || pumpDurMs == 0 || pumpDurMs > MAX_PUMP_DURATION_MS) {
-        Serial.printf("[SCHED] CH%d active config invalid (%.2f ml, %lu ms), skipping\n",
+        LOG_INFO("[SCHED] CH%d active config invalid (%.2f ml, %lu ms), skipping",
                       channel, singleDoseMl, pumpDurMs);
         return false;
     }
@@ -282,12 +283,12 @@ bool DosingScheduler::_startDosing(uint8_t channel, uint8_t eventHour) {
     _currentEvent.failed           = false;
     portEXIT_CRITICAL(&_schedulerMux);
 
-    Serial.printf("[SCHED] Starting CH%d: %.2f ml, %lu ms\n",
+    LOG_INFO("[SCHED] Starting CH%d: %.2f ml, %lu ms",
                   channel, _currentEvent.target_ml, _currentEvent.target_duration_ms);
 
     RelayResult res = relayController.turnOn(channel, _currentEvent.target_duration_ms);
     if (res != RelayResult::OK) {
-        Serial.printf("[SCHED] Pump start failed: %s\n", RelayController::resultToString(res));
+        LOG_INFO("[SCHED] Pump start failed: %s", RelayController::resultToString(res));
         portENTER_CRITICAL(&_schedulerMux);
         _currentEvent.failed   = true;
         _currentEvent.channel  = 255;
@@ -322,7 +323,7 @@ void DosingScheduler::_completeDosing(bool success) {
     portEXIT_CRITICAL(&_schedulerMux);
 
     uint32_t actualDuration = millis() - startTime;
-    Serial.printf("[SCHED] CH%d done: %s, %lu ms\n",
+    LOG_INFO("[SCHED] CH%d done: %s, %lu ms",
                   channel, success ? "OK" : "FAILED", actualDuration);
 
     if (success) {
@@ -355,13 +356,13 @@ bool DosingScheduler::triggerManualDose(uint8_t channel) {
         if (cfg.isEventEnabled(h)) { eventHour = h; break; }
     }
 
-    Serial.printf("[SCHED] Manual trigger CH%d (eventH=%d)\n", channel, eventHour);
+    LOG_INFO("[SCHED] Manual trigger CH%d (eventH=%d)", channel, eventHour);
     return _startDosing(channel, eventHour);
 }
 
 void DosingScheduler::stopCurrentDose() {
     if (_currentEvent.channel < CHANNEL_COUNT) {
-        Serial.printf("[SCHED] Stopping CH%d\n", _currentEvent.channel);
+        LOG_INFO("[SCHED] Stopping CH%d", _currentEvent.channel);
         relayController.turnOff(_currentEvent.channel);
         _completeDosing(false);
     }

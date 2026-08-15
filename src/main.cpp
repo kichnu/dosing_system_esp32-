@@ -15,6 +15,7 @@
 #include "esp_system.h"
 
 #include "web_server.h"
+#include "core/logging.h"
 #include <WiFi.h>
 #include <ArduinoOTA.h>
 #include <esp_task_wdt.h>
@@ -178,6 +179,9 @@ void initNetwork() {
         initWebServer();
         initStatus.webserver_ok = true;
         Serial.println(F("OK"));
+
+        // --- Log-socket (podgląd logów przez WiFi bez USB) ---
+        startLogServer();
     } else {
         initStatus.webserver_ok = false;
         Serial.println(F("[INIT] WebServer: SKIPPED (no WiFi)"));
@@ -191,6 +195,10 @@ void initNetwork() {
 
         static bool haltedBeforeOTA = false;
         ArduinoOTA.onStart([]() {
+            // Log-socket konkuruje o pulę gniazd LWIP z połączeniem TCP, które
+            // ArduinoOTA otwiera do hosta podczas transferu — wyłączyć przed OTA.
+            stopLogServer();
+
             // KRYTYCZNE: wyłączyć pompy PRZED erase flash - erase blokuje CPU
             // na dłużej niż jeden tick, pompa zostawiona ON zostałaby ON przez
             // cały czas trwania OTA.
@@ -470,6 +478,10 @@ if (framController.writeContainerVolume(0, &testVol)) {
 void loop() {
     // === OTA: obsługiwać w KAŻDEJ iteracji, przed jakimkolwiek early return ===
     ArduinoOTA.handle();
+
+    // === Log-socket: przyjmować nowe połączenia klienta, przed early returnami
+    // (działa też w stanie halted/critical error) ===
+    updateLogServer();
 
     // === CRITICAL: Always update relay (safety) ===
     safetyManager.update();
