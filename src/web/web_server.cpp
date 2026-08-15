@@ -1255,11 +1255,106 @@ void handleApiParamLogPost(AsyncWebServerRequest* request, uint8_t* data, size_t
 }
 
 // ============================================================================
+// API: EVENT LOG — GET
+// Zwraca pełny stan EventLog: 75 slotów ringa notatnika zdarzeń
+// ============================================================================
+
+void handleApiEventLogGet(AsyncWebServerRequest* request) {
+    if (!isAuthenticated(request)) {
+        request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+        return;
+    }
+    if (framBusy) {
+        request->send(503, "application/json", "{\"error\":\"FRAM busy\"}");
+        return;
+    }
+
+    EventLog* log = (EventLog*)malloc(sizeof(EventLog));
+    if (!log) {
+        request->send(503, "application/json", "{\"error\":\"Out of memory\"}");
+        return;
+    }
+    framController.readEventLog(log);  // zerowy blok jeśli CRC fail — OK
+
+    JsonDocument doc;
+    doc["head"]  = log->head;
+    doc["count"] = log->count;
+
+    JsonArray eArr = doc["entries"].to<JsonArray>();
+    for (int i = 0; i < 75; i++) {
+        JsonObject e = eArr.add<JsonObject>();
+        e["timestamp"] = log->entries[i].timestamp;
+        e["text"]      = log->entries[i].text;
+        e["flags"]     = log->entries[i].flags;
+    }
+
+    free(log);
+
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response);
+}
+
+// ============================================================================
+// API: EVENT LOG — POST
+// Przyjmuje pełny stan EventLog i zapisuje do FRAM
+// ============================================================================
+
+void handleApiEventLogPost(AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
+    static String elBodyBuffer;
+    if (index == 0) elBodyBuffer = "";
+    elBodyBuffer += String((char*)data).substring(0, len);
+    if (index + len < total) return;
+
+    if (!isAuthenticated(request)) {
+        request->send(401, "application/json", "{\"success\":false,\"error\":\"Unauthorized\"}");
+        elBodyBuffer = "";
+        return;
+    }
+
+    JsonDocument doc;
+    if (deserializeJson(doc, elBodyBuffer) != DeserializationError::Ok) {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
+        elBodyBuffer = "";
+        return;
+    }
+    elBodyBuffer = "";
+
+    EventLog* log = (EventLog*)malloc(sizeof(EventLog));
+    if (!log) {
+        request->send(503, "application/json", "{\"success\":false,\"error\":\"Out of memory\"}");
+        return;
+    }
+    memset(log, 0, sizeof(EventLog));
+
+    log->head  = (uint8_t)(doc["head"]  | 0);
+    log->count = (uint8_t)(doc["count"] | 0);
+    if (log->head >= 75)  log->head = 0;
+    if (log->count > 75)  log->count = 75;
+
+    JsonArray eArr = doc["entries"].as<JsonArray>();
+    for (int i = 0; i < 75 && i < (int)eArr.size(); i++) {
+        JsonObject e = eArr[i];
+        const char* text = e["text"] | "";
+        strncpy(log->entries[i].text, text, 160);
+        log->entries[i].text[160] = '\0';
+        log->entries[i].timestamp = (uint32_t)(e["timestamp"] | 0);
+        log->entries[i].flags     = (uint8_t)(e["flags"] | 0);
+    }
+
+    bool ok = framController.writeEventLog(log);
+    free(log);
+
+    request->send(200, "application/json",
+        ok ? "{\"success\":true}" : "{\"success\":false,\"error\":\"FRAM write failed\"}");
+}
+
+// ============================================================================
 // INITIALIZATION
 // ============================================================================
 
 void initWebServer() {
-    Serial.println(F("[WEB] Initializing web server..."));
+    LOG_INFO("[WEB] Initializing web server...");
     
     // Init dependencies
     initSessionManager();
@@ -1298,6 +1393,10 @@ void initWebServer() {
     // === PARAM LOG API ===
     server.on("/api/paramlog", HTTP_GET, handleApiParamLogGet);
     server.on("/api/paramlog", HTTP_POST, [](AsyncWebServerRequest* request){}, NULL, handleApiParamLogPost);
+
+    // === EVENT LOG API ===
+    server.on("/api/eventlog", HTTP_GET, handleApiEventLogGet);
+    server.on("/api/eventlog", HTTP_POST, [](AsyncWebServerRequest* request){}, NULL, handleApiEventLogPost);
 
     // === PUMP MONITOR (Edge Impulse — stub, future implementation) ===
     server.on("/api/pump-monitor-status", HTTP_GET, [](AsyncWebServerRequest* request) {

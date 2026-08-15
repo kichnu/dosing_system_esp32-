@@ -185,6 +185,9 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .event-slot.running .event-lbl{background:rgba(59,130,246,0.2);border-color:var(--accent-blue-run);animation:running-pulse 1s infinite}
 .event-slot.running .event-time{color:var(--accent-blue-run)}
 .event-slot.running .event-dot{background:var(--accent-blue-run)}
+.event-slot.done .event-cb:not(:checked)+.event-lbl .event-dot,
+.event-slot.failed .event-cb:not(:checked)+.event-lbl .event-dot,
+.event-slot.running .event-cb:not(:checked)+.event-lbl .event-dot{background:transparent}
 
 @keyframes running-pulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.5)}50%{box-shadow:0 0 8px 2px rgba(59,130,246,0.3)}}
 @keyframes pulse-border{0%,100%{box-shadow:0 0 0 0 rgba(234,179,8,0.4)}50%{box-shadow:0 0 0 2px rgba(234,179,8,0.1)}}
@@ -344,6 +347,17 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .new-tmpl-create{height:30px;padding:0 10px;background:var(--accent-cyan);border:none;border-radius:var(--radius-sm);color:var(--bg-primary);font-size:var(--font-xs);font-weight:700;cursor:pointer;flex-shrink:0}
 .new-tmpl-cancel{height:30px;width:30px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);font-size:13px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center}
 .params-empty{padding:18px 8px;text-align:center;font-size:var(--font-sm);color:var(--text-muted);font-style:italic}
+.eventlog-add-form{display:none;flex-direction:column;gap:6px;padding:8px;background:rgba(34,211,213,0.04);border-bottom:1px solid rgba(34,211,213,0.12)}
+.eventlog-add-form.visible{display:flex}
+.eventlog-add-actions{display:flex;gap:6px;justify-content:flex-end}
+.eventlog-input{width:100%;min-height:32px;padding:6px 8px;background:var(--bg-input);border:1px solid var(--accent-cyan);border-radius:4px;font-family:inherit;font-size:var(--font-sm);color:var(--text-primary);outline:none;resize:vertical;box-sizing:border-box}
+.eventlog-input.over-limit{border-color:var(--accent-red)}
+.eventlog-row{display:flex;flex-direction:column;gap:2px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.03)}
+.eventlog-row:last-child{border-bottom:none}
+.eventlog-row-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.eventlog-ts{font-size:var(--font-xs);color:var(--text-muted);font-family:'SF Mono','Fira Code',monospace}
+.eventlog-text{font-size:var(--font-sm);color:var(--text-primary);white-space:pre-wrap;word-break:break-word}
+.eventlog-empty{padding:10px 8px;text-align:center;font-size:var(--font-xs);color:var(--text-muted);font-style:italic}
 .lock-btn{display:flex;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 4px;margin-left:5px;font-size:var(--font-sm);font-weight:600;cursor:pointer;transition:color var(--transition-fast),border-color var(--transition-fast);white-space:nowrap}
 .lock-btn.locked{color:var(--text-muted)}
 .lock-btn.unlocked{color:var(--accent-green);border-color:var(--accent-green)}
@@ -441,6 +455,8 @@ let paramLog=null;
 const paramsExpanded=Array(8).fill(false);
 const chartState={};
 const chTmplAssign=Array.from({length:8},()=>[]);
+let eventLog=null;
+const eventLogExpanded=Array(8).fill(false);
 
 function init(){
     for(let i=0;i<CFG.CHANNEL_COUNT;i++){
@@ -455,6 +471,7 @@ function init(){
     setInterval(loadStatus,5000);
     loadNotes();
     loadParamLog();
+    loadEventLog();
     fetch('api/verify-pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:''})}).then(r=>r.json()).then(d=>{lockEnabled=!!d.has_pin;updateLockUI();}).catch(()=>{});
 }
 
@@ -546,6 +563,7 @@ ${renderNotesSection(idx)}
 <div class="section"><div class="section-header"><div class="section-title"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>Time Schedule (UTC)</div><span class="card-time">--:--:--</span></div><div class="section-body"><div class="events-grid">${eventsHtml}</div></div></div>
 <div class="section"><div class="section-header"><div class="section-title"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Active Days</div></div><div class="section-body"><div class="days-grid">${daysHtml}</div></div></div>
 ${renderParamsSection(idx)}
+${renderEventLogSection(idx)}
 ${renderConfigSection(ch,idx,validClass,validMsg,validIcon,single,pumpTime,weekly)}
 </div>
 </div>
@@ -753,7 +771,7 @@ function loadStatus(){
                 channels[i].eventsFailed=chData.eventsFailed||0;
                 channels[i].state=chData.state||'inactive';
             });
-            if(editingChannel===-1&&!editingNotes&&!document.querySelector('.new-tmpl-form.visible,.add-record-form.visible,.rec-value-input,.assign-select:focus')){
+            if(editingChannel===-1&&!editingNotes&&!document.querySelector('.new-tmpl-form.visible,.add-record-form.visible,.rec-value-input,.assign-select:focus,.eventlog-add-form.visible')){
                 renderChannels();
             } else {
                 // Re-render zablokowany (user edytuje) — odśwież tylko kontrolki wolumenu i dozowania
@@ -1106,6 +1124,68 @@ function exportCsv(ch,tmplId){
     a.click();
 }
 
+// ── EventLog CRUD ────────────────────────────────────────────────────────
+function loadEventLog(){
+    fetch('api/eventlog').then(r=>r.json()).then(data=>{eventLog=data;renderChannels();}).catch(()=>{});
+}
+function saveEventLog(cb){
+    fetch('api/eventlog',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(eventLog)})
+    .then(r=>r.json()).then(d=>{if(cb)cb(!!d.success);}).catch(()=>{if(cb)cb(false);});
+}
+function showAddEventLog(idx){
+    const f=document.getElementById('eventlogAddForm_'+idx);
+    if(f){f.classList.add('visible');const inp=f.querySelector('.eventlog-input');if(inp)inp.focus();}
+}
+function hideAddEventLog(idx){
+    const f=document.getElementById('eventlogAddForm_'+idx);
+    if(!f) return;
+    f.classList.remove('visible');
+    const inp=f.querySelector('.eventlog-input');
+    if(inp){inp.value='';inp.classList.remove('over-limit');}
+    const btn=document.getElementById('eventlogSaveBtn_'+idx);
+    if(btn)btn.disabled=false;
+}
+function onEventLogInput(idx){
+    const inp=document.getElementById('eventlogInput_'+idx);
+    const btn=document.getElementById('eventlogSaveBtn_'+idx);
+    if(!inp||!btn) return;
+    const over=inp.value.length>160;
+    inp.classList.toggle('over-limit',over);
+    btn.disabled=over;
+}
+function saveEventLogEntry(idx){
+    if(!eventLog) return;
+    const inp=document.getElementById('eventlogInput_'+idx);
+    if(!inp) return;
+    const text=inp.value;
+    if(!text.trim()||text.length>160){inp.focus();return;}
+    const now=Math.floor(Date.now()/1000);
+    eventLog.entries[eventLog.head]={timestamp:now,text:text,flags:1};
+    eventLog.head=(eventLog.head+1)%75;
+    if(eventLog.count<75) eventLog.count++;
+    hideAddEventLog(idx);
+    saveEventLog(()=>renderChannels());
+}
+function deleteEventLogEntry(ei){
+    if(!eventLog||!eventLog.entries[ei]) return;
+    eventLog.entries[ei].flags=0;
+    saveEventLog(()=>renderChannels());
+}
+function csvField(s){
+    const str=String(s==null?'':s);
+    return /[",\n\r]/.test(str) ? '"'+str.replace(/"/g,'""')+'"' : str;
+}
+function exportEventLogCsv(){
+    if(!eventLog) return;
+    const entries=eventLog.entries.filter(e=>(e.flags&1)!==0).slice().sort((a,b)=>b.timestamp-a.timestamp);
+    let csv='timestamp,text\n';
+    entries.forEach(e=>{csv+=fmtTs(e.timestamp)+','+csvField(e.text)+'\n';});
+    const a=document.createElement('a');
+    a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+    a.download='eventlog.csv';
+    a.click();
+}
+
 // ── Chart ─────────────────────────────────────────────────────────────────
 function niceNum(x,round){
     const exp=Math.floor(Math.log10(x));const f=x/Math.pow(10,exp);
@@ -1306,6 +1386,60 @@ function renderParamsSection(idx){
         +'<button class="new-tmpl-create" onclick="createTmpl('+idx+')">Create</button>'
         +'<button class="new-tmpl-cancel" onclick="hideNewTmplForm('+idx+')">\xd7</button>'
         +'</div></div></div></div>';
+}
+function toggleEventLog(idx){
+    eventLogExpanded[idx]=!eventLogExpanded[idx];
+    const s=document.getElementById('eventlogSec_'+idx);
+    const b=document.getElementById('eventlogToggleBtn_'+idx);
+    if(s) s.classList.toggle('expanded',eventLogExpanded[idx]);
+    if(b) b.textContent=eventLogExpanded[idx]?'▴':'▾';
+}
+function renderEventLogSection(idx){
+    const exp=eventLogExpanded[idx];
+    const svgDown='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+    const hdr='<div class="params-header"><svg class="params-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>';
+    if(!eventLog){
+        return '<div class="params-section" id="eventlogSec_'+idx+'">'+hdr+'<span class="params-preview empty">Loading event log…</span></div></div>';
+    }
+    const activeCount=eventLog.entries.reduce((s,e)=>s+((e.flags&1)?1:0),0);
+    const entries=eventLog.entries
+        .map(function(e,i){return Object.assign({},e,{_ei:i});})
+        .filter(function(e){return (e.flags&1)!==0;})
+        .sort(function(a,b){return b.timestamp-a.timestamp;});
+    const rowsHtml=entries.length===0
+        ?'<div class="eventlog-empty">No entries yet — click + Add</div>'
+        :entries.map(function(e){
+            return '<div class="eventlog-row">'
+                +'<div class="eventlog-row-top">'
+                +'<span class="eventlog-ts">'+fmtTs(e.timestamp)+' UTC</span>'
+                +'<button class="tmpl-remove-btn" onclick="deleteEventLogEntry('+e._ei+')" title="Delete">\xd7</button>'
+                +'</div>'
+                +'<div class="eventlog-text">'+escAttr(e.text)+'</div>'
+                +'</div>';
+        }).join('');
+    const blockHtml='<div class="tmpl-block">'
+        +'<div class="tmpl-header">'
+        +'<span class="tmpl-name">Entries</span>'
+        +'<span class="tmpl-unit">'+activeCount+'/75</span>'
+        +'<button class="tmpl-icon-btn" onclick="exportEventLogCsv()" title="Export CSV">'+svgDown+'</button>'
+        +'<button class="tmpl-add-btn" onclick="showAddEventLog('+idx+')">+ Add</button>'
+        +'</div>'
+        +'<div class="eventlog-add-form" id="eventlogAddForm_'+idx+'">'
+        +'<textarea class="eventlog-input" id="eventlogInput_'+idx+'" rows="1" placeholder="New entry…" oninput="onEventLogInput('+idx+')"></textarea>'
+        +'<div class="eventlog-add-actions">'
+        +'<button class="add-rec-save" id="eventlogSaveBtn_'+idx+'" onclick="saveEventLogEntry('+idx+')">Save</button>'
+        +'<button class="add-rec-cancel" onclick="hideAddEventLog('+idx+')">\xd7</button>'
+        +'</div></div>'
+        +rowsHtml
+        +'</div>';
+    return '<div class="params-section'+(exp?' expanded':'')+'" id="eventlogSec_'+idx+'">'
+        +hdr
+        +'<span class="params-preview" id="eventlogPreview_'+idx+'">Event Log</span>'
+        +'<button class="params-toggle-btn" id="eventlogToggleBtn_'+idx+'" onclick="toggleEventLog('+idx+')">'+(exp?'▴':'▾')+'</button>'
+        +'</div>'
+        +'<div class="params-body" id="eventlogBody_'+idx+'">'
+        +blockHtml
+        +'</div></div>';
 }
 
 document.addEventListener('DOMContentLoaded',init);

@@ -111,7 +111,11 @@ public:
     // --- Param Log ---
     bool readParamLog(ParamLog* log);
     bool writeParamLog(const ParamLog* log);
-    
+
+    // --- Event Log ---
+    bool readEventLog(EventLog* log);
+    bool writeEventLog(const EventLog* log);
+
     // --- Utility ---
     
     /**

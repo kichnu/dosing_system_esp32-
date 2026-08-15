@@ -400,6 +400,32 @@ static_assert(sizeof(ParamLog) == 1852, "ParamLog must be 1852 bytes");
 #pragma pack(pop)
 
 // ============================================================================
+// EVENT LOG — notatnik zdarzeń, chronologiczny ring buffer wolnego tekstu
+// Przechowywane w FRAM @ FRAM_ADDR_EVENT_LOG
+// ============================================================================
+
+#pragma pack(push, 1)
+
+struct EventLogEntry {          // 168B
+    uint32_t timestamp;         // Unix UTC
+    char     text[161];         // treść, zawsze null-terminated
+    uint8_t  flags;              // bit0: slot ważny
+    uint8_t  _pad[2];
+};
+static_assert(sizeof(EventLogEntry) == 168, "EventLogEntry must be 168 bytes");
+
+struct EventLog {               // 12608B łącznie
+    EventLogEntry entries[75];  // 75 × 168B = 12600B — chronologiczny ring
+    uint8_t  head;
+    uint8_t  count;
+    uint8_t  _pad[2];
+    uint32_t crc32;              // OSTATNIE pole
+};
+static_assert(sizeof(EventLog) == 12608, "EventLog must be 12608 bytes");
+
+#pragma pack(pop)
+
+// ============================================================================
 // PUMP MONITOR STATUS (tylko RAM — dane z Edge Impulse ESP32 przez UART)
 // ============================================================================
 

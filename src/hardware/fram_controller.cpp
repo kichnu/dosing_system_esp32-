@@ -669,3 +669,31 @@ bool FramController::writeParamLog(const ParamLog* log) {
     free(tmp);
     return ok;
 }
+
+// ============================================================================
+// EVENT LOG (notatnik zdarzeń — chronologiczny ring wolnego tekstu)
+// EventLog jest duży (12608B) — zapis przez malloc żeby nie obciążać stosu
+// CRC-lazy-init: sekcja samoleczy się bez bumpu FRAM_LAYOUT_VERSION
+// ============================================================================
+
+bool FramController::readEventLog(EventLog* log) {
+    if (!log) return false;
+    if (!readBytes(FRAM_ADDR_EVENT_LOG, log, sizeof(EventLog))) return false;
+    uint32_t crc = calculateCRC32(log, sizeof(EventLog) - sizeof(uint32_t));
+    if (log->crc32 != crc) {
+        memset(log, 0, sizeof(EventLog));
+        return false;
+    }
+    return true;
+}
+
+bool FramController::writeEventLog(const EventLog* log) {
+    if (!log) return false;
+    EventLog* tmp = (EventLog*)malloc(sizeof(EventLog));
+    if (!tmp) return false;
+    memcpy(tmp, log, sizeof(EventLog));
+    tmp->crc32 = calculateCRC32(tmp, sizeof(EventLog) - sizeof(uint32_t));
+    bool ok = writeBytes(FRAM_ADDR_EVENT_LOG, tmp, sizeof(EventLog));
+    free(tmp);
+    return ok;
+}

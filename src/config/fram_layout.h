@@ -49,7 +49,9 @@
 // FREE               | 0x0A90   | 112 B     | Rezerva
 // SHARED_NOTES       | 0x0B00   | 400 B     | Notes pool + ch_note_idx (12 × 32B + meta)
 // PARAM_LOG          | 0x0C90   | 1852 B    | ParamLog: 20 tmpl × 32B + ring 100 × 12B
-// RESERVED           | 0x13CC   | ~26.7 KB  | Przyszłe użycie
+// (gap)              | 0x13CC   | 1024 B    | Celowy odstęp, rezerwa na przyszłość
+// EVENT_LOG          | 0x17CC   | 12608 B   | EventLog: ring 75 × 168B + 8B meta
+// RESERVED           | 0x490C   | ~13.74 KB | Przyszłe użycie
 // ============================================================================
 
 // ----------------------------------------------------------------------------
@@ -202,9 +204,20 @@ static_assert(sizeof(AuthData) == FRAM_SIZE_AUTH_DATA, "AuthData size mismatch")
 #define FRAM_SIZE_PARAM_LOG         sizeof(ParamLog)   // 1852B
 
 // ----------------------------------------------------------------------------
-// RESERVED (0x13CC - 0x7FFF)  ~26.7 KB
+// EVENT LOG (0x17CC - 0x490B)  12608B
+// Notatnik zdarzeń: ring 75 × 168B (EventLogEntry) + 8B meta
+// Poprzedzone celowym 1024B odstępem od końca PARAM_LOG (rezerwa)
+// Sekcja NIE wymusza bumpu FRAM_LAYOUT_VERSION — korzysta z tego samego
+// mechanizmu CRC-lazy-init co PARAM_LOG/SHARED_NOTES/CHANNEL_LABELS.
 // ----------------------------------------------------------------------------
-#define FRAM_ADDR_RESERVED          0x13CC
+#define FRAM_GAP_BEFORE_EVENT_LOG   1024
+#define FRAM_ADDR_EVENT_LOG         (FRAM_ADDR_PARAM_LOG + FRAM_SIZE_PARAM_LOG + FRAM_GAP_BEFORE_EVENT_LOG)
+#define FRAM_SIZE_EVENT_LOG         sizeof(EventLog)   // 12608B
+
+// ----------------------------------------------------------------------------
+// RESERVED (0x490C - 0x7FFF)  ~13.74 KB
+// ----------------------------------------------------------------------------
+#define FRAM_ADDR_RESERVED          (FRAM_ADDR_EVENT_LOG + FRAM_SIZE_EVENT_LOG)
 #define FRAM_SIZE_RESERVED          (FRAM_SIZE_BYTES - FRAM_ADDR_RESERVED)
 
 // ============================================================================
@@ -223,8 +236,11 @@ static_assert(FRAM_ADDR_PENDING_CONFIG + FRAM_SIZE_PENDING_CONFIG <= FRAM_ADDR_D
 static_assert(FRAM_ADDR_SHARED_NOTES + FRAM_SIZE_SHARED_NOTES <= FRAM_ADDR_PARAM_LOG,
               "SHARED_NOTES overlaps PARAM_LOG!");
 
-static_assert(FRAM_ADDR_PARAM_LOG + FRAM_SIZE_PARAM_LOG <= FRAM_ADDR_RESERVED,
-              "PARAM_LOG overlaps RESERVED!");
+static_assert(FRAM_ADDR_PARAM_LOG + FRAM_SIZE_PARAM_LOG <= FRAM_ADDR_EVENT_LOG,
+              "PARAM_LOG overlaps EVENT_LOG!");
+
+static_assert(FRAM_ADDR_EVENT_LOG + FRAM_SIZE_EVENT_LOG <= FRAM_ADDR_RESERVED,
+              "EVENT_LOG overlaps RESERVED!");
 
 // ============================================================================
 // FRAM OPERATIONS (deklaracje)
