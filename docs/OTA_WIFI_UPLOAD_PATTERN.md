@@ -18,15 +18,26 @@ default_envs = xxx          ; BEZ tego `pio run` bez -e budowałoby WSZYSTKIE
 extends = env:xxx
 upload_protocol = espota
 upload_flags =
-    --auth=${sysenv.OTA_PASSWORD}
+    --auth=${sysenv.OTA_PASSWORD_<ip_z_podkreślnikami>}
     --host_port=8266          ; STAŁY port zwrotny — patrz gotcha #3 niżej
 
 build_flags =
     ...
-    -DOTA_PASSWORD=\"${sysenv.OTA_PASSWORD}\"   ; też w build_flags, nie tylko upload_flags —
-                                                  ; to hasło, którego ArduinoOTA.setPassword()
-                                                  ; użyje NA URZĄDZENIU
+    -DOTA_PASSWORD=\"${sysenv.OTA_PASSWORD_<ip_z_podkreślnikami>}\"   ; makro w firmware ZOSTAJE
+                                                  ; "OTA_PASSWORD" (to go czyta
+                                                  ; ArduinoOTA.setPassword() w main.cpp) — zmienia
+                                                  ; się tylko nazwa zmiennej ŚRODOWISKOWEJ shella,
+                                                  ; z której sysenv czyta wartość
 ```
+
+Nazwa zmiennej środowiskowej **po lokalnym IP urządzenia**, nie po nazwie
+projektu (np. `OTA_PASSWORD_192_168_10_3`, kropki → podkreślniki — shell/SCons
+nie akceptują kropek w nazwach zmiennych). Powód: kilka projektów IoT
+trzymanych w jednym `~/.secrets/iot.env` i sourcowanych do tego samego shella
+— gdyby wszystkie używały tej samej nazwy `OTA_PASSWORD`, ostatni `export` w
+pliku nadpisywałby poprzednie i łatwo o wgranie złego hasła do złego
+urządzenia. `#define OTA_PASSWORD` w firmware (main.cpp) zostaje bez zmian —
+to tylko nazwa zmiennej po stronie shella/`platformio.ini`.
 
 ## 2. main.cpp
 
@@ -79,20 +90,45 @@ Checklist:
 
 ## 4. Gotchas z sesji upload/debug
 
-- **`OTA_PASSWORD` musi być w TEJ SAMEJ komendzie shell co `pio run`** — export
-  w osobnym wywołaniu (np. osobny krok w agencie/skrypcie) nie przetrwa do
-  następnego procesu. Objaw: `Authentication Failed` mimo poprawnego hasła —
-  bo firmware zostało przeflashowane z pustym/innym hasłem w build_flags.
+- **`OTA_PASSWORD_<ip>` musi być ustawione w środowisku, w którym działa
+  `pio run`** — export w osobnym procesie (np. osobny krok w agencie/skrypcie,
+  inna sesja shella) nie przetrwa do procesu `pio`. Objaw: `Authentication
+  Failed` mimo poprawnego hasła — bo firmware zostało przeflashowane z
+  pustym/innym hasłem w build_flags.
+- **Ad-hoc `export` przed każdym uploadem powoduje pełny rebuild całego kodu
+  przy KAŻDYM OTA, nie tylko incremental** — `-DOTA_PASSWORD` siedzi w
+  globalnym `build_flags` (patrz sekcja 1), więc PlatformIO/SCons liczy
+  sygnaturę do rebuildu KAŻDEGO `.o` na podstawie pełnej listy flag dla danego
+  environmentu. Jeśli wartość zmiennej różni się między wywołaniami (nowy
+  terminal bez eksportu = pusty string, inna wartość niż poprzednio), ten
+  jeden flag zmienia sygnaturę dla wszystkich plików naraz → SCons
+  przebudowuje wszystko od zera, nawet gdy realnie zmienił się jeden plik.
+  Fix: ustaw hasło RAZ, na stałe, poza repo — `~/.secrets/iot.env`
+  (`chmod 700` katalog, `chmod 600` plik, jedna linia
+  `export OTA_PASSWORD_<ip>='...'` per urządzenie/projekt — nazwa zmiennej po
+  IP, patrz sekcja 1), sourcowany z `~/.zshrc`:
+  ```bash
+  [ -f ~/.secrets/iot.env ] && source ~/.secrets/iot.env
+  ```
+  Ze stałą wartością `pio run -e xxx_ota -t upload` wraca do normalnego
+  przyrostowego budowania.
 - **Hasło ze znakami specjalnymi shella (`#`, `$`, spacja) — zawsze w
-  pojedynczym cudzysłowie**: `export OTA_PASSWORD='we6#...'`.
+  pojedynczym cudzysłowie**: `export OTA_PASSWORD_192_168_10_3='we6#...'`.
 - **Różne podsieci/VLAN (izolacja IoT na routerze)**: espota po autentykacji
   wymaga połączenia TCP zainicjowanego PRZEZ urządzenie z powrotem do kompa
   (na `--host_port`) — typowa reguła firewalla "IoT może być odpytywane, nie
   może samo wchodzić do LAN" to blokuje. Potrzebna tymczasowa reguła forward
   (src=urządzenie, dst=komp, dst-port=host_port).
-- **Log-socket (WiFi TCP log) NIE pokaże przyczyny crasha/paniki** — pisze się
-  surowo na UART z pominięciem softwarowego loggera. Diagnoza crasha zawsze
-  wymaga fizycznego USB monitora równolegle z próbą OTA.
+- **Log-socket (WiFi TCP log, port 8880) — zaimplementowany w
+  `src/core/logging.cpp`** (`startLogServer()` po połączeniu WiFi,
+  `updateLogServer()` w `loop()`, przed wczesnymi returnami — działa też
+  w stanie halted/critical error). Podgląd: `pio device monitor --port
+  socket://<device-ip>:8880`. Duplikuje `logInfo`/`logWarning`/`logError`
+  do jednego podłączonego klienta TCP (LAN-only, bez auth, dev tool).
+  **NIE pokaże przyczyny crasha/paniki** — te piszą się surowo na UART
+  z pominięciem softwarowego loggera (i przed nawiązaniem połączenia TCP
+  klienta). Diagnoza crasha zawsze wymaga fizycznego USB monitora
+  równolegle z próbą OTA.
 - **Dekodowanie backtrace'u precyzyjnie, nie na oko**: `xtensa-esp32sX-elf-addr2line
   -pfiaC -e .pio/build/<env>/firmware.elf <adresy z Backtrace:>` — ELF musi być
   z TEGO SAMEGO builda co crash (nie przebudowany później). Dodatkowo

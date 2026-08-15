@@ -16,22 +16,58 @@ pio device monitor -b 115200
 ### OTA (upload przez WiFi)
 
 Wymaga wcześniejszego uploadu przez USB firmware zawierającego `ArduinoOTA.begin()`
-(bez tego OTA nie istnieje na urządzeniu). `OTA_PASSWORD` musi być w TEJ SAMEJ
-komendzie shella co `pio run` — export w osobnym kroku nie przetrwa do procesu
-`pio` (objaw: `Authentication Failed`).
+(bez tego OTA nie istnieje na urządzeniu). `OTA_PASSWORD_192_168_10_3` musi być
+ustawione w środowisku, w którym działa `pio run` — export w osobnym
+procesie/sesji nie przetrwa do procesu `pio` (objaw: `Authentication Failed`).
+Nazwa zmiennej po lokalnym IP urządzenia (nie po nazwie projektu) — kilka
+projektów IoT dzieli jeden `~/.secrets/iot.env`, więc wspólna nazwa
+`OTA_PASSWORD` groziłaby wgraniem hasła nie do tego urządzenia.
+
+**Ustaw hasło raz, na stałe** — nie ad-hoc przed każdą komendą. `-DOTA_PASSWORD`
+(makro w firmware, bez zmian) trafia do globalnego `build_flags`, więc zmiana
+źródłowej zmiennej środowiskowej między wywołaniami zmienia sygnaturę builda
+dla WSZYSTKICH plików naraz (PlatformIO/SCons) → pełny rebuild od zera przy
+każdym OTA, zamiast przyrostowego. Trzymaj hasło w `~/.secrets/iot.env`
+(`chmod 700` katalog, `chmod 600` plik, jedna linia
+`export OTA_PASSWORD_192_168_10_3='...'`), sourcowany z `~/.zshrc`:
+
+```bash
+[ -f ~/.secrets/iot.env ] && source ~/.secrets/iot.env
+```
 
 ```bash
 # Pierwszy upload — zawsze przez USB, wypala hasło w build_flags
-OTA_PASSWORD='...' pio run -e production -t upload
+pio run -e production -t upload
 
 # Kolejne update'y — przez WiFi (urządzenie musi być w tej samej sieci)
-OTA_PASSWORD='...' pio run -e production_ota -t upload
-OTA_PASSWORD='...' pio run -e debug_ota -t upload
+pio run -e production_ota -t upload
+pio run -e debug_ota -t upload
 
 # Jeśli mDNS (dozownik.local) nie działa (np. VLAN/izolacja IoT) —
 # nadpisz --upload-port adresem IP
-OTA_PASSWORD='...' pio run -e production_ota -t upload --upload-port 192.168.1.x
+pio run -e production_ota -t upload --upload-port 192.168.10.3
 ```
+
+### Zdalny podgląd logów (bez USB)
+
+Firmware duplikuje logi (`logInfo`/`logWarning`/`logError`) do gniazda TCP na
+porcie 8880 (`src/core/logging.cpp`, `startLogServer()`/`updateLogServer()`) —
+przydatne po OTA, gdy USB jest niedostępne. Tylko jeden klient naraz (LAN-only,
+narzędzie deweloperskie, bez uwierzytelniania). **Nie pokazuje przyczyny
+crasha/paniki** (te trafiają surowo na UART, z pominięciem loggera) — do
+diagnozy crasha zawsze potrzebny fizyczny USB monitor.
+
+```bash
+pio device monitor --port socket://<device-ip>:8880
+```
+
+**Zakres:** log-socket dubluje tylko to, co idzie przez `LOG_INFO`/`LOG_WARNING`/
+`LOG_ERROR` (`src/core/logging.h`) — czyli "żywe" zdarzenia runtime: pompy
+(`[PUMP]`), żądania WWW (`[WEB]`), harmonogram (`[SCHED]`) i heartbeat
+(`[HEARTBEAT]`). Reszta logów (init przy boocie, CLI/debug menu, dumpy
+`printStatus()`, biblioteki) idzie przez surowe `Serial.print`/`printf`
+z pominięciem loggera i jest widoczna **tylko przez USB**
+(`pio device monitor -b 115200`).
 
 Zmiana tabeli partycji (`board_build.partitions`) wymaga zawsze pełnego reflashu
 przez USB — nie przechodzi przez OTA. Szczegóły wzorca i pułapek (partycje,
